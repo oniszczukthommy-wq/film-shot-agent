@@ -1,7 +1,13 @@
+# 影片本体与派生物不进仓库（体积大，用 scripts/fetch_demo.sh 重新拉）
 data/library/raw/
-data/library/thumbs/
+data/library/web/
 data/library/exports/
-data/library/*.sqlite3*
+data/library/*.sqlite3
+data/library/*.sqlite3-*
+
+# 预置演示索引进仓库：clone 下来就能浏览（不含影片，播放时会提示源文件缺失）
+!data/library/demo.sqlite3
+
 .env
 __pycache__/
 .venv/

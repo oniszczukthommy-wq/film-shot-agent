@@ -246,3 +246,21 @@ def blank_image(out: Path, width: int, height: int) -> None:
             "-frames:v", "1", "-q:v", "3", str(out),
         ]
     )
+
+
+def remux_for_web(source: Path, out: Path) -> None:
+    """Copy the video stream into an MP4 the browser can stream with byte ranges."""
+    out.parent.mkdir(parents=True, exist_ok=True)
+    result = _run(
+        [
+            ffmpeg_exe(), "-hide_banner", "-loglevel", "error", "-y",
+            "-i", str(source),
+            "-map", "0:v:0", "-map", "0:a:0?",
+            "-c:v", "copy", "-c:a", "aac", "-b:a", "128k",
+            "-movflags", "+faststart",
+            str(out),
+        ],
+        timeout=1800,
+    )
+    if result.returncode != 0 or not out.exists():
+        raise RuntimeError(f"转封装失败：{result.stderr[:300]}")

@@ -163,7 +163,7 @@ function shotCard(shot) {
       el("div", { class: "shot-meta" },
         `${shot.look.color_temp_label} · ${shot.aspect_ratio}:1 · ${shot.look.brightness_bucket === "dark" ? "暗" : shot.look.brightness_bucket === "bright" ? "亮" : "中"} · ${shot.look.saturation_bucket}`),
       el("div", { class: "shot-actions" },
-        el("button", { onclick: () => openShot(shot.id) }, "详情"),
+        el("button", { onclick: () => openShot(shot.id) }, "播放"),
         el("button", { onclick: () => exportClip(shot.id, "gif-s") }, "GIF"),
         el("button", { onclick: () => addToDeck("shot", shot.id) }, "加入板"))
     )
@@ -175,7 +175,7 @@ async function openShot(id) {
   const shot = await api(`/api/shots/${id}`);
   const modal = $("#modal-body");
   modal.replaceChildren(
-    el("img", { class: "big", src: `/media/thumbs/${shot.thumb}`, alt: "" }),
+    playerBlock(shot.title_slug, shot.start_ms, `${shot.title} · ${fmt(shot.start_ms)}`),
     el("div", { class: "modal-body" },
       el("div", {},
         paletteBar(shot.look.palette),
@@ -203,6 +203,53 @@ async function openShot(id) {
     )
   );
   $("#modal").classList.add("open");
+  bindPlayerKeys();
+}
+
+function playerBlock(slug, startMs, label) {
+  const wrap = el("div", { class: "player" },
+    el("video", {
+      id: "player",
+      controls: "controls",
+      preload: "metadata",
+      playsinline: "playsinline",
+      src: `/media/video/${slug}`,
+    }),
+    el("div", { class: "player-bar" },
+      el("span", { class: "player-label" }, label),
+      el("span", { class: "hint" }, "J/K/L 逐帧 / 播放暂停 · 空格播放"))
+  );
+  const video = wrap.querySelector("video");
+  video.addEventListener("loadedmetadata", () => {
+    if (Number.isFinite(startMs)) video.currentTime = Math.max(0, startMs / 1000);
+  });
+  return wrap;
+}
+
+function bindPlayerKeys() {
+  const video = document.getElementById("player");
+  if (!video) return;
+  const onKey = (event) => {
+    if (event.target.matches("input, textarea")) return;
+    const step = 1 / 25;
+    if (event.key === "k" || event.code === "Space") {
+      event.preventDefault();
+      video.paused ? video.play() : video.pause();
+    } else if (event.key === "l") {
+      video.currentTime = Math.min(video.duration || 0, video.currentTime + step);
+    } else if (event.key === "j") {
+      video.currentTime = Math.max(0, video.currentTime - step);
+    }
+  };
+  document.addEventListener("keydown", onKey);
+  $("#modal-close").addEventListener("click", () => document.removeEventListener("keydown", onKey));
+}
+
+async function openPlayerAt(slug, startMs, label) {
+  const modal = $("#modal-body");
+  modal.replaceChildren(playerBlock(slug, startMs, label));
+  $("#modal").classList.add("open");
+  bindPlayerKeys();
 }
 
 async function exportClip(id, fmt) {
@@ -266,7 +313,15 @@ function lineCard(item) {
       el("div", { class: "line-ctx" },
         item.prev ? el("div", {}, el("b", {}, "上一句  "), item.prev) : null,
         item.next ? el("div", {}, el("b", {}, "下一句  "), item.next) : null),
-      el("div", { class: "line-meta" }, `${item.title} · ${item.timestamp}${item.shot_id ? " · 点击看画面" : ""}`))
+      el("div", { class: "line-meta" },
+        `${item.title} · ${item.timestamp}${item.shot_id ? " · 点击看画面" : ""}`,
+        el("button", {
+          class: "play-line",
+          onclick: (event) => {
+            event.stopPropagation();
+            openPlayerAt(item.title_slug, item.start_ms, `${item.title} · ${item.timestamp}`);
+          },
+        }, "▶ 从这句开始播")))
   );
   return card;
 }

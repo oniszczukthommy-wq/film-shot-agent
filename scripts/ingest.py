@@ -62,6 +62,15 @@ ATTRIBUTION = (
 )
 
 
+def build_web_copy(path: Path, spec: FilmSpec) -> Path:
+    """Produce a browser-streamable MP4 once; playback reads this instead of the master file."""
+    target = get_settings().library_dir / "web" / f"{spec.slug}.mp4"
+    if target.exists() and target.stat().st_size > 0:
+        return target
+    ffmpeg.remux_for_web(path, target)
+    return target
+
+
 def build_shots(path: Path, spec: FilmSpec) -> int:
     settings = get_settings()
     info = ffmpeg.probe(path)
@@ -244,6 +253,7 @@ def main() -> int:
         if not path.exists():
             print(f"跳过 {spec.slug}：缺少 {path}")
             continue
+        build_web_copy(path, spec)
         shots = build_shots(path, spec)
         cues = build_cues(spec)
         print(f"{spec.name}: {shots} 个镜头, {cues} 条台词")

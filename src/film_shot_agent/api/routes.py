@@ -120,6 +120,20 @@ def browse_path(path: str, session: Session = Depends(get_session)) -> dict:
     }
 
 
+@router.get("/media/video/{slug}")
+def video(slug: str, session: Session = Depends(get_session)):
+    """Stream an owned film. Starlette answers Range requests, so seeking works."""
+    title = session.scalar(select(Title).where(Title.slug == slug))
+    if title is None:
+        raise HTTPException(status_code=404, detail="影片不存在。")
+    library = get_settings().library_dir
+    web_copy = library / "web" / f"{slug}.mp4"
+    path = web_copy if web_copy.exists() else Path(title.source_file)
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="源文件不在本机，无法播放。")
+    return FileResponse(path, media_type="video/mp4", filename=path.name)
+
+
 @router.get("/api/shots/{shot_id}")
 def shot_detail(shot_id: str, session: Session = Depends(get_session)) -> dict:
     shot = session.get(Shot, shot_id)

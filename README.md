@@ -24,7 +24,7 @@ uv run uvicorn film_shot_agent.main:app --app-dir src --port 8000
 验证：
 
 ```bash
-uv run pytest        # 54 个离线测试，不需要 ffmpeg、不联网
+uv run pytest        # 58 个离线测试，不需要 ffmpeg、不联网
 uv run ruff check .
 ```
 
@@ -69,13 +69,23 @@ uv run ruff check .
 
 对本地源文件用 ffmpeg 现切：MP4 或 5 档 GIF（320 → 1920 宽），带缓存，同一镜头同一格式只渲染一次。
 
-### 6. 参考板能导出成图 / PDF
+### 6. 能看片，而且是从这一镜开始
+
+- `GET /media/video/{slug}` 直出本地 MP4，Starlette 原生支持 **Range**（`206 Partial Content`），进度条能拖
+- 点镜头卡片「播放」，弹窗里的播放器**直接定位到这一镜的起始时间**，静帧和画面像素级对得上
+- 每条台词后面的「▶ 从这句开始播」直接跳到那句话的时间点
+- **J / K / L** 逐帧后退 / 播放暂停 / 逐帧前进（和两家参考产品的剪辑器同一套键位）
+
+播放读的是 `data/library/web/{slug}.mp4`（ingest 时用 `-c:v copy` 转封装成浏览器友好的 MP4，
+几秒钟，不动画质）；找不到才回落到原始文件。
+
+### 7. 参考板能导出成图 / PDF
 
 - **拼图**：`GET /api/decks/{id}/collage` — ffmpeg `xstack` 拼成一张图，按 3 列排布
 - **打印 / 另存为 PDF**：`GET /decks/{id}/print` — A4 横向排版，每格带片名、年份、时间点、备注，
   页脚自动带上 CC BY 署名。用浏览器打印是因为中文字体交给浏览器渲染最稳。
 
-### 7. Agent 是规则驱动的，而且把思考过程摊开
+### 8. Agent 是规则驱动的，而且把思考过程摊开
 
 ```
 输入：找冷色调、暗一点的镜头
@@ -149,6 +159,7 @@ curl -o data/library/subs/TOS-CH.srt https://download.blender.org/demo/movies/To
 | 人工语义标签（景别 / 构图 / 人数 / 情绪） | 需要视觉模型或标注团队，当前只做"机器能算的"维度 |
 | 向量检索（以图搜图） | 单机 SQLite + 244 镜头规模下不划算；已想清楚落地方式（见 `docs/设计取舍.md`） |
 | 多人协作 / 分享链接 | 单人本机演示不需要，且整板截图外链有版权风险 |
+| 转码 / HLS / 远程流 | 文件就在本地，直出 + Range 就够；转码只用在导出 GIF |
 | LLM 参与决策 | 演示要可复现；模型只适合做意图标签，不该决定返回什么 |
 
 ---
