@@ -30,12 +30,23 @@ _engine = None
 _SessionLocal: sessionmaker[Session] | None = None
 
 
+def resolve_database_url() -> str:
+    """Fall back to the bundled demo index so a fresh clone can browse before ingesting."""
+    settings = get_settings()
+    default = settings.database_url
+    if default.endswith("film.sqlite3"):
+        library = settings.library_dir
+        if not (library / "film.sqlite3").exists() and (library / "demo.sqlite3").exists():
+            return f"sqlite:///{library / 'demo.sqlite3'}"
+    return default
+
+
 def get_engine():
     global _engine, _SessionLocal
     if _engine is None:
         settings = get_settings()
         settings.library_dir.mkdir(parents=True, exist_ok=True)
-        _engine = _make_engine(settings.database_url)
+        _engine = _make_engine(resolve_database_url())
         _SessionLocal = sessionmaker(bind=_engine, expire_on_commit=False, future=True)
     return _engine
 

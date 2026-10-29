@@ -9,17 +9,21 @@
 ## 30 秒跑起来
 
 ```bash
+git clone https://github.com/oniszczukthommy-wq/film-shot-agent && cd film-shot-agent
 uv sync --group dev
-
-# 1) 把片子放进 data/library/raw/（仓库不附带，见「素材」一节）
-# 2) 抽帧 + 算调色板 + 建台词索引（首次约 2 分钟）
-uv run python scripts/ingest.py
-
-# 3) 起服务
 uv run uvicorn film_shot_agent.main:app --app-dir src --port 8000
 ```
 
 打开 <http://localhost:8000>。
+
+仓库里带了**预置索引**（`data/library/demo.sqlite3` + 244 张缩略图，约 6 MB），
+所以 clone 下来就能直接浏览、检索、看板；播放和切片需要影片本体，跑一次：
+
+```bash
+./scripts/fetch_demo.sh   # 下载两部 CC BY 影片 + 字幕，重建索引（约 2 分钟）
+```
+
+自己换片子也一样：丢进 `data/library/raw/`，改 `scripts/ingest.py` 里的 `FILMS`，再跑一次 ingest。
 
 验证：
 
