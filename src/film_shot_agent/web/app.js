@@ -298,6 +298,8 @@ async function loadDecks() {
       el("div", {}, el("b", {}, deck.name), el("span", { class: "hint" }, ` · ${deck.count} 项`)),
       el("div", { style: "display:flex;gap:8px" },
         el("button", { onclick: () => openDeck(deck.id) }, "打开"),
+        el("button", { onclick: () => window.open(`/api/decks/${deck.id}/collage`, "_blank") }, "导出拼图"),
+        el("button", { onclick: () => window.open(`/decks/${deck.id}/print`, "_blank") }, "打印 PDF"),
         el("button", { onclick: async () => { await api(`/api/decks/${deck.id}`, { method: "DELETE" }); loadDecks(); } }, "删除"))));
   }
   view.append(list);
@@ -316,7 +318,9 @@ async function openDeck(id) {
       }
       return el("div", { class: "deck-row" }, el("span", {}, item.line?.text || ""));
     })),
-    el("div", { class: "rail-actions", style: "max-width:240px" },
+    el("div", { class: "rail-actions", style: "max-width:420px" },
+      el("button", { onclick: () => window.open(`/api/decks/${id}/collage`, "_blank") }, "导出拼图"),
+      el("button", { onclick: () => window.open(`/decks/${id}/print`, "_blank") }, "打印 / 另存为 PDF"),
       el("button", { onclick: loadDecks }, "返回列表"))
   );
 }

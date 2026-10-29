@@ -147,31 +147,36 @@ def line_payload(hit: LineHit) -> dict:
     }
 
 
+def shot_at(session: Session, title_id: str, at_ms: int):
+    """The shot covering `at_ms`, falling back to the next one when a line lands in a gap."""
+    from film_shot_agent.domain.models import Shot as ShotModel
+
+    shot = session.scalar(
+        select(ShotModel)
+        .where(
+            ShotModel.title_id == title_id,
+            ShotModel.start_ms <= at_ms,
+            ShotModel.end_ms > at_ms,
+        )
+        .limit(1)
+    )
+    if shot is not None:
+        return shot
+    return session.scalar(
+        select(ShotModel)
+        .where(ShotModel.title_id == title_id, ShotModel.start_ms >= at_ms)
+        .order_by(ShotModel.start_ms)
+        .limit(1)
+    )
+
+
 def pipeline(session: Session, hit: LineHit) -> dict:
     """One line plus the shot that is on screen while it is spoken."""
     payload = line_payload(hit)
-    from film_shot_agent.domain.models import Shot as ShotModel
     from film_shot_agent.domain.models import Title as TitleModel
 
     title = session.scalar(select(TitleModel).where(TitleModel.slug == hit.title_slug))
-    shot = None
-    if title is not None:
-        shot = session.scalar(
-            select(ShotModel)
-            .where(
-                ShotModel.title_id == title.id,
-                ShotModel.start_ms <= hit.start_ms,
-                ShotModel.end_ms > hit.start_ms,
-            )
-            .limit(1)
-        )
-        if shot is None:
-            shot = session.scalar(
-                select(ShotModel)
-                .where(ShotModel.title_id == title.id, ShotModel.start_ms >= hit.start_ms)
-                .order_by(ShotModel.start_ms)
-                .limit(1)
-            )
+    shot = shot_at(session, title.id, hit.start_ms) if title is not None else None
     if shot is not None:
         payload["shot_id"] = shot.id
         payload["shot_thumb"] = shot.thumb

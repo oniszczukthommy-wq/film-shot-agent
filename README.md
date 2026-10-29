@@ -24,7 +24,7 @@ uv run uvicorn film_shot_agent.main:app --app-dir src --port 8000
 验证：
 
 ```bash
-uv run pytest        # 46 个离线测试，不需要 ffmpeg、不联网
+uv run pytest        # 54 个离线测试，不需要 ffmpeg、不联网
 uv run ruff check .
 ```
 
@@ -69,7 +69,13 @@ uv run ruff check .
 
 对本地源文件用 ffmpeg 现切：MP4 或 5 档 GIF（320 → 1920 宽），带缓存，同一镜头同一格式只渲染一次。
 
-### 6. Agent 是规则驱动的，而且把思考过程摊开
+### 6. 参考板能导出成图 / PDF
+
+- **拼图**：`GET /api/decks/{id}/collage` — ffmpeg `xstack` 拼成一张图，按 3 列排布
+- **打印 / 另存为 PDF**：`GET /decks/{id}/print` — A4 横向排版，每格带片名、年份、时间点、备注，
+  页脚自动带上 CC BY 署名。用浏览器打印是因为中文字体交给浏览器渲染最稳。
+
+### 7. Agent 是规则驱动的，而且把思考过程摊开
 
 ```
 输入：找冷色调、暗一点的镜头

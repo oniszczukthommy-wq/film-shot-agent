@@ -171,3 +171,78 @@ def format_timestamp(ms: int) -> str:
 
 def as_json(value) -> str:
     return json.dumps(value, ensure_ascii=False)
+
+
+def grid_images(
+    sources: list[Path],
+    out: Path,
+    *,
+    columns: int,
+    cell_width: int,
+    cell_height: int,
+    padding: int,
+) -> tuple[int, str]:
+    """Compose images into a grid via explicit xstack, so cell order is deterministic."""
+    if not sources:
+        return 1, "没有可拼图的输入"
+    if len(sources) == 1:
+        return _scale_returning(sources[0], out, cell_width, cell_height)
+
+    args = [ffmpeg_exe(), "-hide_banner", "-loglevel", "error", "-y"]
+    for source in sources:
+        args += ["-i", str(source)]
+
+    chains = []
+    for index in range(len(sources)):
+        chains.append(
+            f"[{index}:v]scale={cell_width}:{cell_height}:force_original_aspect_ratio=decrease,"
+            f"pad={cell_width}:{cell_height}:(ow-iw)/2:(oh-ih)/2:color=0x0b0c0e[v{index}]"
+        )
+    layout = "|".join(
+        f"{(index % columns) * (cell_width + padding)}_"
+        f"{(index // columns) * (cell_height + padding)}"
+        for index in range(len(sources))
+    )
+    inputs = "".join(f"[v{index}]" for index in range(len(sources)))
+    chains.append(
+        f"{inputs}xstack=inputs={len(sources)}:layout={layout}:fill=0x0b0c0e[out]"
+    )
+    args += [
+        "-filter_complex", ";".join(chains),
+        "-map", "[out]", "-frames:v", "1", "-q:v", "3", str(out),
+    ]
+    result = _run(args)
+    return result.returncode, result.stderr
+
+
+def _scale_returning(source: Path, out: Path, width: int, height: int) -> tuple[int, str]:
+    result = _run(
+        [
+            ffmpeg_exe(), "-hide_banner", "-loglevel", "error", "-y",
+            "-i", str(source),
+            "-vf",
+            f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+            f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=0x0b0c0e",
+            "-frames:v", "1", "-q:v", "3", str(out),
+        ]
+    )
+    return result.returncode, result.stderr
+
+
+def scale_image(source: Path, out: Path, width: int) -> None:
+    _run(
+        [
+            ffmpeg_exe(), "-hide_banner", "-loglevel", "error", "-y",
+            "-i", str(source), "-vf", f"scale={width}:-2", "-q:v", "3", str(out),
+        ]
+    )
+
+
+def blank_image(out: Path, width: int, height: int) -> None:
+    _run(
+        [
+            ffmpeg_exe(), "-hide_banner", "-loglevel", "error", "-y",
+            "-f", "lavfi", "-i", f"color=c=0x0b0c0e:s={width}x{height}",
+            "-frames:v", "1", "-q:v", "3", str(out),
+        ]
+    )

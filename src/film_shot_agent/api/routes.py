@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -15,6 +15,7 @@ from film_shot_agent.core.db import get_session
 from film_shot_agent.domain.models import Cue, Shot, Title
 from film_shot_agent.services import agent as agent_service
 from film_shot_agent.services import clips as clip_service
+from film_shot_agent.services import deck_export
 from film_shot_agent.services import decks as deck_service
 from film_shot_agent.services import lines as line_service
 from film_shot_agent.services import metrics as metric_service
@@ -215,6 +216,27 @@ def deck_remove_item(
 def deck_delete(deck_id: str, session: Session = Depends(get_session)) -> dict:
     deck_service.delete_deck(session, deck_id)
     return {"ok": True}
+
+
+@router.get("/api/decks/{deck_id}/collage")
+def deck_collage(
+    deck_id: str,
+    columns: int = 3,
+    session: Session = Depends(get_session),
+):
+    try:
+        path = deck_export.collage(session, deck_id, columns=columns)
+    except deck_service.DeckError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return FileResponse(path, media_type="image/jpeg", filename=path.name)
+
+
+@router.get("/decks/{deck_id}/print")
+def deck_print(deck_id: str, session: Session = Depends(get_session)):
+    try:
+        return HTMLResponse(deck_export.print_html(session, deck_id))
+    except deck_service.DeckError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 class AgentMessage(BaseModel):
