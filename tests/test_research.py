@@ -322,3 +322,14 @@ def test_only_item_pages_can_supply_a_douban_rating():
     assert service._is_official_rating_url("https://www.imdb.com/title/tt1375666/")
     assert not service._is_official_rating_url("https://movie.douban.com/review/15795731/")
     assert not service._is_official_rating_url("https://movie.douban.com/subject/1/discussion/2/")
+
+
+def test_watch_rows_are_deduped_per_platform():
+    items = [
+        {"platform": "优酷", "access": "需确认", "url": "https://v.youku.com/v_show/id_a.html"},
+        {"platform": "优酷", "access": "会员", "url": "https://v.youku.com/v_show/id_b.html"},
+        {"platform": "哔哩哔哩", "access": "需确认", "url": "https://www.bilibili.com/bangumi/play/ep1"},
+    ]
+    merged = service._merge_watch(items)
+    assert [row["platform"] for row in merged] == ["哔哩哔哩", "优酷"]
+    assert [row["access"] for row in merged] == ["需确认", "会员"]

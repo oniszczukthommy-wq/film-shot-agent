@@ -774,7 +774,7 @@ def _enrich_missing_titles(payload: dict, ctx: ResearchContext) -> None:
         if not title.get("kind"):
             title["kind"] = facts.get("kind", "电影")
         title["ratings"] = _merge_ratings(title["ratings"])
-        title["watch"].sort(key=lambda item: ACCESS_ORDER.get(item["access"], 9))
+        title["watch"] = _merge_watch(title["watch"])
         for url in list(known_ratings | known_watch):
             if url in ctx.citations and url not in {item["url"] for item in payload["citations"]}:
                 payload["citations"].append(ctx.citations[url])
@@ -921,7 +921,7 @@ def _normalise_title(row: dict, ctx: ResearchContext) -> dict:
                 "note": fact.get("note") or "点开确认是否免费",
             }
         )
-    watch.sort(key=lambda item: ACCESS_ORDER.get(item["access"], 9))
+    watch = _merge_watch(watch)
     confidence = str(row.get("confidence") or "").strip().lower()
     if confidence not in CONFIDENCE:
         confidence = "medium"
@@ -966,6 +966,41 @@ def _merge_ratings(items: list[dict]) -> list[dict]:
             continue
         out.append(chosen)
     return out
+
+
+def _merge_watch(items: list[dict]) -> list[dict]:
+    """One row per platform. Keep the most definite access label and the TMDB link."""
+    best: dict[str, dict] = {}
+    seen_urls: set[str] = set()
+    for item in items:
+        platform = item.get("platform", "")
+        url = item.get("url", "")
+        if not platform or not url or url in seen_urls:
+            continue
+        seen_urls.add(url)
+        current = best.get(platform)
+        if current is None or _watch_priority(item) > _watch_priority(current):
+            best[platform] = item
+    return sorted(
+        best.values(),
+        key=lambda item: (ACCESS_ORDER.get(item.get("access", ""), 9), item.get("platform", "")),
+    )
+
+
+def _watch_priority(item: dict) -> int:
+    access = item.get("access", "")
+    score = {
+        "免费": 6,
+        "可能免费": 5,
+        "含广告": 4,
+        "可能含广告": 3,
+        "会员": 3,
+        "付费": 2,
+        "需确认": 1,
+    }.get(access, 0)
+    if "TMDB" in item.get("note", "") or "JustWatch" in item.get("note", ""):
+        score += 1
+    return score
 
 
 def _float_score(value: object) -> float:
