@@ -109,7 +109,7 @@ def test_agent_runs_tools_and_drops_unbacked_claims(session):
 
     assert out["intent"] == "rating"
     assert out["answer"].startswith("《盗梦空间》")
-    assert [step["tool"] for step in out["trace"]] == ["where_to_watch", "search_web"]
+    assert {step["tool"] for step in out["trace"]} == {"where_to_watch", "search_web"}
 
     title = out["titles"][0]
     assert {rating["score"] for rating in title["ratings"]} == {"9.4", "8.8"}
@@ -166,3 +166,36 @@ def test_scene_tool_only_returns_candidates(session):
     assert out["intent"] == "scene"
     assert out["titles"][0]["confidence"] == "low"
     assert any("截图" in caveat for caveat in out["caveats"])
+
+
+def test_tmdb_rating_is_attached_when_composer_omits_it(session):
+    ctx = service.ResearchContext(
+        session=session,
+        settings=settings(),
+        llm=FakeLLM(),
+        search=fake_search,
+    )
+    ctx.record_rating(
+        {
+            "source": "TMDB",
+            "score": 8.4,
+            "out_of": 10,
+            "url": "https://www.themoviedb.org/movie/27205",
+            "note": "",
+        },
+        "盗梦空间",
+    )
+    out = service._normalise(
+        {"answer": "好看", "intent": "rating", "titles": [{"name": "盗梦空间"}]},
+        ctx,
+        "盗梦空间好看吗",
+    )
+    assert out["titles"][0]["ratings"] == [
+        {
+            "source": "TMDB",
+            "score": "8.4",
+            "out_of": "10",
+            "url": "https://www.themoviedb.org/movie/27205",
+            "note": "TMDB 结构化数据",
+        }
+    ]

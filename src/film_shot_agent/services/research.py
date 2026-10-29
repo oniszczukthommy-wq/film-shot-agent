@@ -44,7 +44,8 @@ SYSTEM_PROMPT = """你是「问片」，一个中文影视研究助理。用户�
 
 工具用得越多越好，但不要重复同一个查询。最多 6 轮。
 
-工具选择：找片/在哪看 → where_to_watch；口碑/评分 → reviews；模糊镜头 → identify_scene；找台词 → search_quote；其他事实 → search_web。"""
+工具选择：找片/在哪看 → where_to_watch；口碑/评分 → reviews；模糊镜头 → identify_scene；找台词 → search_quote；其他事实 → search_web。
+评分数字优先使用工具结果里的 ratings 字段（TMDB 结构化评分）；没有 ratings 才用搜索摘要。"""
 
 COMPOSE_PROMPT = """你是最终整理器。只根据 <evidence> 中工具返回的内容回答 <question>。
 
@@ -280,6 +281,7 @@ class ResearchContext:
                 "score": str(item.get("score", "")),
                 "out_of": str(item.get("out_of", "")),
                 "note": item.get("note", ""),
+                "title": title,
             },
         )
 
@@ -326,8 +328,15 @@ def research(
         if not result.tool_calls:
             break
         messages.append(result.assistant_message())
-        for call in result.tool_calls:
-            payload = _execute(call, ctx)
+        calls = result.tool_calls
+        if len(calls) > 1 and all(call.name != "search_quote" for call in calls):
+            # Independent lookups run together; a rating query should not wait for
+            # the watch lookup to finish before starting the review lookup.
+            with ThreadPoolExecutor(max_workers=min(3, len(calls))) as pool:
+                payloads = list(pool.map(lambda call: _execute(call, ctx), calls))
+        else:
+            payloads = [_execute(call, ctx) for call in calls]
+        for call, payload in zip(calls, payloads, strict=True):
             messages.append(
                 {
                     "role": "tool",
@@ -455,10 +464,14 @@ def _tool_where_to_watch(args: dict, ctx: ResearchContext) -> dict:
     entries: list[dict] = []
     notes: list[str] = []
     source = "search"
+    tmdb_ratings: list[dict] = []
 
     if ctx.settings.has_tmdb:
         try:
             facts = tmdb_adapter.lookup(title, settings=ctx.settings)
+            for rating in facts.get("ratings", []):
+                ctx.record_rating(rating, facts["name"])
+                tmdb_ratings.append(rating)
             for item in facts.get("watch", []):
                 entry = {
                     "platform": item["platform"],
@@ -477,7 +490,6 @@ def _tool_where_to_watch(args: dict, ctx: ResearchContext) -> dict:
     queries = [
         f"{title} 在线观看 免费",
         f"{title} 腾讯视频 爱奇艺 优酷 哔哩哔哩",
-        f"{title} where to watch stream",
     ]
     seen: set[tuple[str, str]] = set()
     for hit in _search_many(queries, ctx):
@@ -512,6 +524,7 @@ def _tool_where_to_watch(args: dict, ctx: ResearchContext) -> dict:
         "title": title,
         "source": source,
         "watch": deduped[:8],
+        "ratings": tmdb_ratings,
         "note": " ".join(notes + ["免费/会员标签来自平台或搜索结果，点开页面才能确认。"]),
     }
 
@@ -522,10 +535,14 @@ def _tool_reviews(args: dict, ctx: ResearchContext) -> dict:
         return {"ok": False, "error": "片名不能为空。"}
     items: list[dict] = []
     tmdb_reviews: list[dict] = []
+    tmdb_ratings: list[dict] = []
     if ctx.settings.has_tmdb:
         try:
             facts = tmdb_adapter.lookup(title, settings=ctx.settings)
             tmdb_reviews = facts.get("reviews", [])
+            tmdb_ratings = facts.get("ratings", [])
+            for rating in tmdb_ratings:
+                ctx.record_rating(rating, facts["name"])
             for review in tmdb_reviews:
                 ctx.record_url(review.get("url", ""), review.get("source", "TMDB 评论"))
             ctx.record_url(facts["url"], f"TMDB · {facts['name']}")
@@ -534,7 +551,6 @@ def _tool_reviews(args: dict, ctx: ResearchContext) -> dict:
     queries = (
         f"{title} 豆瓣 短评",
         f"{title} IMDb 评分 评价",
-        f"{title} 烂番茄 观众评价",
     )
     for hit in _search_many(queries, ctx):
         if _is_review_domain(hit.url):
@@ -558,6 +574,7 @@ def _tool_reviews(args: dict, ctx: ResearchContext) -> dict:
         "title": title,
         "items": unique[:10],
         "tmdb_reviews": tmdb_reviews,
+        "ratings": tmdb_ratings,
         "note": "只引用搜索摘要，没有抓取豆瓣/IMDb 页面全文；豆瓣没有公开 API。",
     }
 
@@ -683,6 +700,22 @@ def _normalise(raw: dict, ctx: ResearchContext, question: str) -> dict:
         if not name:
             continue
         titles.append(_normalise_title(row, ctx))
+    for title in titles:
+        # Last deterministic guard: if a tool already fetched a TMDB rating for this
+        # title, show it even when the composer forgot to copy it into the JSON.
+        for url, fact in ctx.rating_facts.items():
+            if url in {rating["url"] for rating in title["ratings"]}:
+                continue
+            if _names_match(title["name"], fact.get("title", "")):
+                title["ratings"].append(
+                    {
+                        "source": fact["source"],
+                        "score": fact["score"],
+                        "out_of": fact["out_of"],
+                        "url": url,
+                        "note": fact.get("note") or "TMDB 结构化数据",
+                    }
+                )
     citations = _citations(raw.get("citations"), ctx)
     for title in titles:
         for url in _title_urls(title):
@@ -803,6 +836,12 @@ def _normalise_title(row: dict, ctx: ResearchContext) -> dict:
         "watch": watch,
         "evidence": _dedupe_text(_as_list(row.get("evidence")), max_items=4, max_len=180),
     }
+
+
+def _names_match(left: str, right: str) -> bool:
+    a = " ".join((left or "").casefold().split())
+    b = " ".join((right or "").casefold().split())
+    return bool(a and b and (a in b or b in a))
 
 
 def _citations(raw: object, ctx: ResearchContext) -> list[dict]:

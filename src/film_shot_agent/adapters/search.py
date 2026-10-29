@@ -52,11 +52,14 @@ class SearchHit:
 
 _cache: dict[tuple[str, str, int], tuple[float, list[SearchHit]]] = {}
 _cache_lock = Lock()
+_ddg_blocked_until = 0.0
 
 
 def clear_cache() -> None:
+    global _ddg_blocked_until
     with _cache_lock:
         _cache.clear()
+    _ddg_blocked_until = 0.0
 
 
 def active_provider(settings: Settings | None = None) -> str:
@@ -129,12 +132,17 @@ def _free_search(query: str, limit: int, client: httpx.Client | None) -> list[Se
     through keeps the product usable without a search key, and the provider is recorded
     on every hit so the UI never pretends the source is something else.
     """
-    try:
-        hits = _duckduckgo(query, limit, client)
-    except SearchError:
-        hits = []
-    if hits:
-        return hits
+    global _ddg_blocked_until
+    hits: list[SearchHit] = []
+    if time.monotonic() >= _ddg_blocked_until:
+        try:
+            hits = _duckduckgo(query, limit, client)
+        except SearchError:
+            hits = []
+        if hits:
+            return hits
+        # Rate-limited or empty: stop paying the 10-20s tax on every later query.
+        _ddg_blocked_until = time.monotonic() + 600
     try:
         hits = _so360(query, limit, client)
     except SearchError:
@@ -216,7 +224,7 @@ def _duckduckgo(query: str, limit: int, client: httpx.Client | None) -> list[Sea
             "https://html.duckduckgo.com/html/",
             params={"q": query, "kl": "cn-zh"},
             headers={"User-Agent": USER_AGENT, "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.7"},
-            timeout=20.0,
+            timeout=12.0,
         )
         response.raise_for_status()
     except httpx.HTTPError as exc:
@@ -230,7 +238,7 @@ def _so360(query: str, limit: int, client: httpx.Client | None) -> list[SearchHi
             "https://www.so.com/s",
             params={"q": query, "ie": "utf-8"},
             headers={"User-Agent": USER_AGENT, "Accept-Language": "zh-CN,zh;q=0.9"},
-            timeout=20.0,
+            timeout=15.0,
         )
         response.raise_for_status()
     except httpx.HTTPError as exc:
