@@ -43,7 +43,7 @@ uv run uvicorn film_shot_agent.main:app --app-dir src --port 8000
 验证：
 
 ```bash
-uv run pytest        # 80 个离线测试，不需要 ffmpeg、不联网
+uv run pytest        # 90 个离线测试，不需要 ffmpeg、不联网
 uv run ruff check .
 ```
 
