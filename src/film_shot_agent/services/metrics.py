@@ -9,6 +9,7 @@ from film_shot_agent.domain.models import MetricEvent
 
 KINDS = (
     "agent_message",
+    "research_message",
     "search_shots",
     "search_lines",
     "shot_opened",

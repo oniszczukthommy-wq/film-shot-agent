@@ -95,6 +95,22 @@ mark { background: rgba(0, 153, 255, 0.14); color: var(--color-sky-blue); border
   font-size: 16px; color: var(--color-graphite);
   transition: color .3s var(--ease-out), background .3s var(--ease-out);
 }
+.nav-links a {
+  display: inline-flex; align-items: center; padding: 8px 16px; border-radius: var(--radius-pill);
+  font-size: 16px; color: var(--color-graphite);
+  transition: color .3s var(--ease-out), background .3s var(--ease-out);
+}
+.nav-links a:hover { color: var(--color-ink); background: rgba(255, 255, 255, 0.7); }
+.nav-links a[aria-current="page"] {
+  color: var(--color-ink); background: var(--color-paper-white);
+  box-shadow: 0 1px 2px rgba(4, 69, 144, 0.08);
+}
+.ask-link {
+  display: inline-flex; margin-top: 28px; padding: 8px 16px; border-radius: var(--radius-pill);
+  font-size: 14px; color: var(--color-iris-blue); background: rgba(255, 255, 255, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(0, 105, 224, 0.14);
+}
+.ask-link:hover { background: var(--color-paper-white); }
 .nav-links button:hover { color: var(--color-ink); background: rgba(255, 255, 255, 0.7); }
 .nav-links button[aria-selected="true"] {
   color: var(--color-ink); background: var(--color-paper-white);
@@ -431,6 +447,7 @@ mark { background: rgba(0, 153, 255, 0.14); color: var(--color-sky-blue); border
   .nav-inner { gap: 12px; height: 64px; }
   .nav-links { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .nav-links button { padding: 6px 12px; font-size: 14px; white-space: nowrap; }
+  .nav-links a { padding: 6px 12px; font-size: 14px; white-space: nowrap; }
   .hero { padding: 56px 0 32px; }
   .hero h1 { font-size: 40px; letter-spacing: -0.8px; }
   .ask { flex-direction: column; padding: 16px; align-items: stretch; }

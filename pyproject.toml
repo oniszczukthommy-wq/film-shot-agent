@@ -1,7 +1,7 @@
 [project]
 name = "film-shot-agent"
 version = "0.1.0"
-description = "Cinematic shot & line search agent — interview demo"
+description = "Cinematic shot & line search, plus a research agent for finding and vetting films"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi>=0.115,<1",
@@ -10,6 +10,7 @@ dependencies = [
     "pydantic-settings>=2.5,<3",
     "pysubs2>=1.8,<2",
     "imageio-ffmpeg>=0.5,<1",
+    "httpx>=0.27,<1",
 ]
 
 [dependency-groups]

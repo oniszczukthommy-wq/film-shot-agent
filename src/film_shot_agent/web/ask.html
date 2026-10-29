@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>问片 · 找电影、查口碑、认镜头、找台词</title>
+<link rel="stylesheet" href="/static/style.css" />
+<link rel="stylesheet" href="/static/ask.css" />
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <div class="logo">SHOT<b>·</b>AGENT<i></i></div>
+    <div class="nav-links" id="nav">
+      <a href="/ask" aria-current="page">问片</a>
+      <a href="/">镜头库</a>
+      <a href="/#lines">台词</a>
+    </div>
+    <div class="nav-spacer"></div>
+    <div class="nav-stat" id="engine-stat">联网搜索 · 来源可点</div>
+  </div>
+</nav>
+
+<header class="hero ask-hero">
+  <div class="hero-blob a"></div>
+  <div class="hero-blob b"></div>
+  <div class="hero-blob c"></div>
+  <div class="wrap hero-inner">
+    <div class="ask-kicker">PERSONAL FILM AGENT</div>
+    <h1>问一部片，<em>给你能核对的答案</em>。</h1>
+    <p class="sub">
+      找片、查口碑、认镜头、找台词。评分写清来源，观看链接优先免费，
+      豆瓣只给跳转和搜索摘要，不假装实时抓取。
+    </p>
+    <form class="ask" id="ask-form">
+      <input id="ask-input" autocomplete="off" maxlength="300"
+        placeholder="比如：最近有什么好看的科幻片？／ 哪部电影里有人在雨中跳舞？" />
+      <button class="btn" id="ask-send" type="submit">问片</button>
+    </form>
+    <div class="suggests" id="ask-suggests"></div>
+  </div>
+</header>
+
+<main class="wrap ask-main">
+  <div id="ask-view">
+    <section class="ask-caps" aria-label="能做什么">
+      <article class="ask-cap">
+        <span class="ask-cap-num">01</span>
+        <h3>找片，免费优先</h3>
+        <p>按你的口味给候选，先列合法免费渠道，再列会员和付费。所有链接都能点回平台。</p>
+      </article>
+      <article class="ask-cap">
+        <span class="ask-cap-num">02</span>
+        <h3>查口碑，来源透明</h3>
+        <p>TMDB / IMDb / 烂番茄 / 豆瓣搜索摘要并排给你，标清哪个是分数、哪个是摘要。</p>
+      </article>
+      <article class="ask-cap">
+        <span class="ask-cap-num">03</span>
+        <h3>认镜头，只给候选</h3>
+        <p>描述一个模糊画面，给 1–3 个候选和证据。证据弱会直说，不硬猜一个答案。</p>
+      </article>
+      <article class="ask-cap">
+        <span class="ask-cap-num">04</span>
+        <h3>找台词，先查本地</h3>
+        <p>本地授权片库能精确到时间点；全网台词给片名、角色和出处链接。</p>
+      </article>
+    </section>
+    <p class="ask-note">
+      这是研究型助理：它会联网查资料，再把证据整理成答案。评分和渠道会变，点开来源确认。
+    </p>
+  </div>
+</main>
+
+<footer class="wrap ask-footer">
+  <span>SHOT·AGENT</span>
+  <span>不提供盗版、网盘、磁力链接。素材与数据来源见页面内引用。</span>
+</footer>
+
+<script type="module" src="/static/ask.js"></script>
+</body>
+</html>

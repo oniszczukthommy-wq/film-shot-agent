@@ -18,6 +18,27 @@ class Settings(BaseSettings):
     max_shots_per_title: int = 400
     scene_threshold: float = 0.35
 
+    # Research layer ("问片"). Secrets stay in .env / process env only.
+    llm_api_key: str = ""
+    llm_base_url: str = "https://api.deepseek.com/v1"
+    llm_model: str = "deepseek-chat"
+    llm_timeout: float = 45.0
+    llm_max_steps: int = 6
+    search_provider: str = "auto"  # auto | tavily | brave | duckduckgo
+    search_api_key: str = ""
+    tmdb_api_key: str = ""
+    region: str = "CN"
+    research_cache_ttl: int = 3600
+    research_max_question: int = 300
+
+    @property
+    def has_llm(self) -> bool:
+        return bool(self.llm_api_key.strip())
+
+    @property
+    def has_tmdb(self) -> bool:
+        return bool(self.tmdb_api_key.strip())
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

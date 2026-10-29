@@ -34,7 +34,17 @@ if _STATIC.exists():
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> HTMLResponse:
-    page = Path(web_dir()) / "index.html"
+    return _page("index.html")
+
+
+@app.get("/ask", response_class=HTMLResponse)
+def ask() -> HTMLResponse:
+    """Research UI: find a film, check ratings, trace a quote."""
+    return _page("ask.html")
+
+
+def _page(name: str) -> HTMLResponse:
+    page = Path(web_dir()) / name
     if not page.exists():
         return HTMLResponse("<h1>UI 尚未生成</h1>", status_code=503)
     return HTMLResponse(page.read_text(encoding="utf-8"))
@@ -43,7 +53,7 @@ def index() -> HTMLResponse:
 @app.get("/browse/{path:path}", response_class=HTMLResponse)
 def browse_page(path: str) -> HTMLResponse:  # noqa: ARG001 - shareable URL surface
     """Shareable path-encoded queries land on the same single-page UI."""
-    return index()
+    return _page("index.html")
 
 
 @app.get("/favicon.ico")

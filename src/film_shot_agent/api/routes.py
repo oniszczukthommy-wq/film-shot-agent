@@ -6,10 +6,11 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from film_shot_agent.adapters.search import active_provider
 from film_shot_agent.core.config import get_settings
 from film_shot_agent.core.db import get_session
 from film_shot_agent.domain.models import Cue, Shot, Title
@@ -19,6 +20,7 @@ from film_shot_agent.services import deck_export
 from film_shot_agent.services import decks as deck_service
 from film_shot_agent.services import lines as line_service
 from film_shot_agent.services import metrics as metric_service
+from film_shot_agent.services import research as research_service
 from film_shot_agent.services.look import normalize_hex
 from film_shot_agent.services.search import (
     FACET_LABELS,
@@ -280,6 +282,35 @@ def agent(payload: AgentMessage, session: Session = Depends(get_session)) -> dic
     return reply.payload()
 
 
+class ResearchMessage(BaseModel):
+    message: str = Field(min_length=1, max_length=300)
+
+
+@router.post("/api/research")
+def research(payload: ResearchMessage, session: Session = Depends(get_session)):
+    """Research agent: web search + ratings + legal watch links, with a visible trace."""
+    text = payload.message.strip()
+    if not text:
+        return _research_error("empty_message", "问题不能为空。", 400)
+    try:
+        result = research_service.research(session, text)
+    except research_service.ResearchUnavailable as exc:
+        return _research_error("research_unavailable", str(exc), 503)
+    except research_service.ResearchError as exc:
+        return _research_error("research_failed", str(exc), 502)
+    except Exception:  # noqa: BLE001 - never leak internals or keys to the client
+        return _research_error("research_failed", "问片暂时不可用，请稍后再试。", 500)
+    metric_service.bump(session, "research_message")
+    return result
+
+
+def _research_error(code: str, message: str, status: int) -> JSONResponse:
+    return JSONResponse(
+        {"error": {"code": code, "message": message}},
+        status_code=status,
+    )
+
+
 @router.get("/api/metrics")
 def metrics(session: Session = Depends(get_session)) -> dict:
     return {"counters": metric_service.snapshot(session)}
@@ -287,7 +318,18 @@ def metrics(session: Session = Depends(get_session)) -> dict:
 
 @router.get("/api/meta")
 def meta() -> dict:
-    return {"sorts": SORTS, "facet_labels": FACET_LABELS}
+    settings = get_settings()
+    return {
+        "sorts": SORTS,
+        "facet_labels": FACET_LABELS,
+        "research": {
+            "enabled": settings.has_llm,
+            "model": settings.llm_model,
+            "search": active_provider(settings),
+            "tmdb": settings.has_tmdb,
+            "region": settings.region,
+        },
+    }
 
 
 def _safe_media_path(base: Path, name: str) -> Path | None:

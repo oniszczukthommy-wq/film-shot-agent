@@ -1,8 +1,11 @@
-# Shot Agent · 影视镜头与台词检索助理
+# Shot Agent · 影视镜头检索 + 问片助理
 
-一个可以现场跑起来的影视 personal agent 演示：**用一句话找画面、找台词，把结果剪成 GIF，收进参考板。**
+一个可以现场跑起来的影视 personal agent：**问一部片，给你能核对的答案；用一句话找画面、找台词，把结果剪成 GIF，收进参考板。**
 
-素材全部是 **CC BY 3.0 授权**的开源电影（Blender Foundation），所以每个镜头都可以合法切片、导出、分发。
+- **问片**（`/ask`）：找片、查评分/口碑、认镜头、找台词；联网搜索，评分和观看链接带来源，免费渠道优先。
+- **镜头库**（`/`）：两部 CC BY 3.0 开源电影的 244 个镜头，可筛选、播放、切片、导出参考板。
+
+镜头素材全部是 **CC BY 3.0 授权**的开源电影（Blender Foundation），所以每个镜头都可以合法切片、导出、分发。
 
 ---
 
@@ -10,11 +13,20 @@
 
 ```bash
 git clone https://github.com/oniszczukthommy-wq/film-shot-agent && cd film-shot-agent
+cp .env.example .env        # 填模型 Key（必填）和 TMDB Key（强烈建议）
 uv sync --group dev
 uv run uvicorn film_shot_agent.main:app --app-dir src --port 8000
 ```
 
-打开 <http://localhost:8000>。
+打开 <http://localhost:8000>（镜头库）或 <http://localhost:8000/ask>（问片）。
+
+`.env` 三组配置：
+
+| 变量 | 作用 | 不填会怎样 |
+| --- | --- | --- |
+| `FILM_AGENT_LLM_API_KEY` / `_BASE_URL` / `_MODEL` | 问片的模型，OpenAI 兼容接口 | `/ask` 返回 503，镜头库照常 |
+| `FILM_AGENT_TMDB_API_KEY` | 结构化评分、评论、合法观看渠道（免费优先） | 只能靠搜索摘要，评分可能显示不出来 |
+| `FILM_AGENT_SEARCH_API_KEY` / `_PROVIDER` | Tavily / Brave | 用 DuckDuckGo + 360 免费兜底，偶尔会被限流 |
 
 仓库里带了**预置索引**（`data/library/demo.sqlite3` + 244 张缩略图，约 6 MB），
 所以 clone 下来就能直接浏览、检索、看板；播放和切片需要影片本体，跑一次：
@@ -31,7 +43,7 @@ uv run uvicorn film_shot_agent.main:app --app-dir src --port 8000
 验证：
 
 ```bash
-uv run pytest        # 58 个离线测试，不需要 ffmpeg、不联网
+uv run pytest        # 79 个离线测试，不需要 ffmpeg、不联网
 uv run ruff check .
 ```
 
@@ -104,22 +116,65 @@ trace: search_shots {"color_temp":"cool","brightness":"dark"} → 31 条 / 1ms
 
 ---
 
+## 问片是怎么做到"能核对"的
+
+`/ask` 不是让模型直接背书，而是一个**研究循环**：
+
+```
+问题 → 模型决定调哪个工具 → 执行 → 证据回填 → 再决定 → 整理成 JSON
+```
+
+工具只有六个：
+
+| 工具 | 做什么 | 证据长什么样 |
+| --- | --- | --- |
+| `search_web` | 联网搜索 | 标题 + URL + 摘要 |
+| `movie_facts` | TMDB 查年份/评分/评论/观看渠道 | 结构化字段 |
+| `where_to_watch` | 找合法平台，免费优先 | 平台 + 免费/会员/付费 + 链接 |
+| `reviews` | 豆瓣 / IMDb / 烂番茄摘要 | 来源 + 摘要 + 链接 |
+| `search_quote` | 台词找电影，先查本地片库 | 时间点 + 镜头 + 网页结果 |
+| `identify_scene` | 模糊画面描述找电影 | 多个候选线索 |
+
+三道硬约束，都是确定性代码，不靠模型自觉：
+
+1. **引用白名单**：最终答案里的 URL 必须是工具这次真的返回过的，模型自己编的链接会被丢掉。
+2. **评分反查**：评分必须能在对应来源的摘要里找到数字；豆瓣/IMDb 之外的博客转述不算评分。
+3. **观看渠道反查**：平台和"免费/会员"标签只能用工具记录过的那份，模型不能自己改；搜索推断的免费只能写「可能免费」。
+
+所以它会给候选、给证据、给置信度，也会说"没查到"。它不会为了好看编一个豆瓣分。
+
+### 边界（这也是产品的一部分）
+
+| 你要的 | 现在能做到 | 为什么 |
+| --- | --- | --- |
+| 找片 + 免费优先 | ✅ | TMDB 的 JustWatch 数据分 free/ads/flatrate/rent/buy；没有 TMDB 时用搜索结果里的官方内容页兜底（免费只能标「可能免费」） |
+| 评分 + 观众评价 | ✅（有 TMDB Key 时最稳） | 豆瓣没有公开 API，只引用搜索摘要 + 豆瓣页面链接，不抓取 |
+| 台词找电影 | ✅ | 本地片库精确到时间点；全网台词给候选和出处 |
+| 模糊镜头找电影 | ⚠️ 只给候选 | 没有全电影镜头库；文字描述是研究题，不是唯一解。截图识别在二期 |
+| 不碰盗版 | ✅ | 观看链接有平台白名单，网盘/磁力/种子不会出现 |
+
+---
+
 ## 架构
 
 ```
 src/film_shot_agent/
 ├── adapters/ffmpeg.py    # 探测、场景切分、抽帧、切片、GIF（唯一碰媒体的地方）
+├── adapters/search.py    # DuckDuckGo / 360 / Tavily / Brave
+├── adapters/llm.py       # OpenAI 兼容 chat + tool calling
+├── adapters/tmdb.py      # 评分、评论、JustWatch 观看渠道
 ├── services/
 │   ├── look.py           # 调色板 + 亮度/对比度/饱和度/冷暖
 │   ├── search.py         # 筛选、路径式查询、分面计数
 │   ├── lines.py          # 台词检索 + 上下文 + 高亮 + 台词↔镜头对齐
 │   ├── clips.py          # 导出与缓存
 │   ├── decks.py          # 参考板
-│   ├── agent.py          # 规则意图 → 工具调用 → trace
+│   ├── agent.py          # 本地规则意图 → 工具调用 → trace
+│   ├── research.py       # 问片：研究循环 + 证据白名单 + JSON 整理
 │   └── metrics.py        # 只存聚合计数，不存查询词
 ├── api/routes.py         # HTTP 边界
 ├── domain/models.py      # SQLite：Title / Shot / Cue / Deck / DeckItem / MetricEvent
-└── web/                  # 单页演示前端（无构建步骤）
+└── web/                  # 镜头库 + 问片前端（无构建步骤）
 ```
 
 设计上的四条约束：
@@ -167,12 +222,15 @@ curl -o data/library/subs/TOS-CH.srt https://download.blender.org/demo/movies/To
 | 向量检索（以图搜图） | 单机 SQLite + 244 镜头规模下不划算；已想清楚落地方式（见 `docs/设计取舍.md`） |
 | 多人协作 / 分享链接 | 单人本机演示不需要，且整板截图外链有版权风险 |
 | 转码 / HLS / 远程流 | 文件就在本地，直出 + Range 就够；转码只用在导出 GIF |
-| LLM 参与决策 | 演示要可复现；模型只适合做意图标签，不该决定返回什么 |
+| LLM 参与本地镜头检索 | 本地筛选仍是规则驱动，结果可复现；问片层才让模型编排工具 |
+| 自动抓取豆瓣页面 | 没有公开 API，抓取违反条款且不稳定；只引用搜索摘要和跳转链接 |
+| 截图/以图搜片 | 需要视觉模型 + 以图搜图接口，先验证准确率和成本再做 |
 
 ---
 
 ## 文档
 
+- [`docs/问片设计.md`](docs/问片设计.md) — 问片层：工具、证据闸门、边界、下一步
 - [`docs/设计取舍.md`](docs/设计取舍.md) — 为什么这么做，以及借了什么、没借什么
 - [`docs/后端自查.md`](docs/后端自查.md) — 全路由 + 恶意输入 + 并发走查，已知边界都在这里
 - [`docs/面试讲解.md`](docs/面试讲解.md) — 90 秒演示脚本 + 常见追问
