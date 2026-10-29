@@ -292,3 +292,33 @@ def test_merge_ratings_prefers_item_page_and_one_per_source():
     ]
     merged = service._merge_ratings(items)
     assert {(r["source"], r["score"]) for r in merged} == {("豆瓣", "8.6"), ("TMDB", "8.4")}
+
+
+def test_watch_urls_must_be_play_pages_not_articles():
+    assert service._is_watch_content_url("https://www.bilibili.com/bangumi/play/ep823534")
+    assert service._is_watch_content_url("https://www.bilibili.com/video/BV1cUE4zgEwW/")
+    assert service._is_watch_content_url("https://v.qq.com/x/cover/h0meep6p766jgqh.html")
+    assert service._is_watch_content_url("https://www.iqiyi.com/v_19rra64i9c.html")
+    assert not service._is_watch_content_url("https://www.bilibili.com/read/cv36133700/")
+    assert not service._is_watch_content_url("https://www.iqiyi.com/so/q_test")
+    assert not service._is_watch_content_url("https://v.qq.com/search?q=test")
+
+
+def test_extract_score_ignores_sequel_numbers_and_bare_integers():
+    assert service._extract_score("《沙丘2》豆瓣评分 2 分？") == ""
+    assert service._extract_score("沙丘2 的豆瓣评分是 8.2 分") == "8.2"
+
+
+def test_merge_ratings_drops_conflicting_article_snippets():
+    items = [
+        {"source": "豆瓣", "score": "2", "url": "https://movie.douban.com/review/1/"},
+        {"source": "豆瓣", "score": "9", "url": "https://movie.douban.com/review/2/"},
+    ]
+    assert service._merge_ratings(items) == []
+
+
+def test_only_item_pages_can_supply_a_douban_rating():
+    assert service._is_official_rating_url("https://movie.douban.com/subject/34874646/")
+    assert service._is_official_rating_url("https://www.imdb.com/title/tt1375666/")
+    assert not service._is_official_rating_url("https://movie.douban.com/review/15795731/")
+    assert not service._is_official_rating_url("https://movie.douban.com/subject/1/discussion/2/")

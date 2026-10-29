@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     region: str = "CN"
     research_cache_ttl: int = 3600
     research_max_question: int = 300
+    research_tool_budget: int = 10
 
     @property
     def has_llm(self) -> bool:

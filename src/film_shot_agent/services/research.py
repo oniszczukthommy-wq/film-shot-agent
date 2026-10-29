@@ -325,6 +325,7 @@ def research(
         {"role": "user", "content": question},
     ]
     steps = 0
+    budget = max(1, settings.research_tool_budget)
     for step in range(1, settings.llm_max_steps + 1):
         steps = step
         try:
@@ -336,7 +337,9 @@ def research(
         if not result.tool_calls:
             break
         messages.append(result.assistant_message())
-        calls = result.tool_calls
+        calls = result.tool_calls[: max(0, budget - len(ctx.trace))]
+        if not calls:
+            break
         if len(calls) > 1 and all(call.name != "search_quote" for call in calls):
             # Independent lookups run together; a rating query should not wait for
             # the watch lookup to finish before starting the review lookup.
@@ -573,8 +576,10 @@ def _tool_reviews(args: dict, ctx: ResearchContext) -> dict:
                     "url": hit.url,
                 }
             )
-            if source in {"豆瓣", "IMDb", "烂番茄", "Metacritic", "Letterboxd"}:
-                score = _extract_score(f"{hit.title} {hit.snippet}")
+            if source in {"豆瓣", "IMDb", "烂番茄", "Metacritic", "Letterboxd"} and _is_official_rating_url(
+                hit.url
+            ):
+                score = _extract_score(hit.snippet)
                 if score:
                     rating = {
                         "source": source,
@@ -764,6 +769,11 @@ def _enrich_missing_titles(payload: dict, ctx: ResearchContext) -> None:
                 }
             )
             known_watch.add(url)
+        if title.get("year") is None:
+            title["year"] = facts.get("year")
+        if not title.get("kind"):
+            title["kind"] = facts.get("kind", "电影")
+        title["ratings"] = _merge_ratings(title["ratings"])
         title["watch"].sort(key=lambda item: ACCESS_ORDER.get(item["access"], 9))
         for url in list(known_ratings | known_watch):
             if url in ctx.citations and url not in {item["url"] for item in payload["citations"]}:
@@ -800,6 +810,8 @@ def _normalise(raw: dict, ctx: ResearchContext, question: str) -> dict:
                         "note": fact.get("note") or "TMDB 结构化数据",
                     }
                 )
+    for title in titles:
+        title["ratings"] = _merge_ratings(title["ratings"])
     citations = _citations(raw.get("citations"), ctx)
     for title in titles:
         for url in _title_urls(title):
@@ -851,9 +863,13 @@ def _normalise_title(row: dict, ctx: ResearchContext) -> dict:
             out_of = fact["out_of"]
             note = fact.get("note") or "TMDB 结构化数据"
         else:
-            # A score that the search snippet never showed, or that comes from a random
-            # blog rather than a rating site, is not a rating we can stand behind.
-            if not _is_rating_domain(url) or score not in ctx.url_text.get(url, ""):
+            # A score that the search snippet never showed, a random blog, or a bare
+            # integer (e.g. the "2" in "沙丘2") is not a rating we can stand behind.
+            if (
+                "." not in score
+                or not _is_rating_domain(url)
+                or score not in ctx.url_text.get(url, "")
+            ):
                 ctx.dropped += 1
                 continue
             source = _domain_label(url)
@@ -927,23 +943,28 @@ def _normalise_title(row: dict, ctx: ResearchContext) -> dict:
 
 
 def _merge_ratings(items: list[dict]) -> list[dict]:
-    """One chip per source. Prefer the official item page over an article snippet."""
-    ranked = sorted(
-        items,
-        key=lambda item: (
-            item.get("source", ""),
-            0 if re.search(r"/(subject|title)/", item.get("url", "")) else 1,
-            -_float_score(item.get("score", "")),
-        ),
-    )
-    seen: set[str] = set()
-    out: list[dict] = []
-    for item in ranked:
+    """One chip per source; prefer the official item page, drop wildly conflicting snippets."""
+    groups: dict[str, list[dict]] = {}
+    for item in items:
         source = item.get("source", "")
-        if not source or source in seen:
+        if source:
+            groups.setdefault(source, []).append(item)
+    out: list[dict] = []
+    for rows in groups.values():
+        ranked = sorted(
+            rows,
+            key=lambda item: (
+                0 if re.search(r"/(subject|title)/", item.get("url", "")) else 1,
+                -_float_score(item.get("score", "")),
+            ),
+        )
+        item_page = [row for row in ranked if re.search(r"/(subject|title)/", row.get("url", ""))]
+        chosen = item_page[0] if item_page else ranked[0]
+        scores = {_float_score(row.get("score", "")) for row in rows}
+        if not item_page and len(scores) > 1 and max(scores) - min(scores) >= 1.0:
+            # "2" and "9" are not two opinions; the extraction is broken or the page is wrong.
             continue
-        seen.add(source)
-        out.append(item)
+        out.append(chosen)
     return out
 
 
@@ -1052,6 +1073,18 @@ def _is_rating_domain(url: str) -> bool:
     return any(host == domain or host.endswith("." + domain) for domain in RATING_DOMAINS)
 
 
+def _is_official_rating_url(url: str) -> bool:
+    """A review page can contain "9.0" in its prose; only the item page carries the score."""
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    path = (parsed.path or "").lower()
+    if host.endswith("douban.com"):
+        return bool(re.fullmatch(r"/(?:movie/)?subject/\d+/?", path))
+    if host.endswith("imdb.com"):
+        return bool(re.fullmatch(r"/title/tt\d+/?", path))
+    return False
+
+
 def _domain_label(url: str) -> str:
     host = (urlparse(url).hostname or "").lower()
     if "douban" in host:
@@ -1073,10 +1106,11 @@ def _domain_label(url: str) -> str:
     return host.replace("www.", "") or "网页"
 
 
+# Require a decimal point. Without it, "沙丘2" turns into a rating of 2.
 SCORE_PATTERNS = (
-    re.compile(r"(?:豆瓣|评分|得分|Rating)[^0-9]{0,10}(\d{1,2}(?:\.\d)?)\s*分?"),
-    re.compile(r"(\d{1,2}(?:\.\d)?)\s*分"),
-    re.compile(r"(\d{1,2}(?:\.\d)?)\s*/\s*10"),
+    re.compile(r"(?:豆瓣|评分|得分|Rating)[^0-9]{0,10}(\d{1,2}\.\d)\s*分?"),
+    re.compile(r"(\d{1,2}\.\d)\s*分"),
+    re.compile(r"(\d{1,2}\.\d)\s*/\s*10"),
 )
 
 
@@ -1091,7 +1125,7 @@ def _extract_score(text: str) -> str:
         except ValueError:
             continue
         if 0 < value <= 10:
-            return f"{value:g}"
+            return f"{value:.1f}"
     return ""
 
 
@@ -1107,10 +1141,29 @@ def _infer_access(default: str, snippet: str) -> str:
 
 SEARCH_PATH_HINTS = ("/so/", "/search", "/s?", "/q_", "/results", "/query")
 QUERY_HINTS = ("q=", "query=", "wd=", "keyword=")
+# A platform domain is not enough: /read/cv... is an article, not a film page.
+CONTENT_PATHS: dict[str, tuple[str, ...]] = {
+    "bilibili.com": ("/bangumi/play/", "/video/bv", "/video/av", "/cheese/play/"),
+    "iqiyi.com": ("/v_", "/a_", "/w_"),
+    "v.qq.com": ("/x/cover/", "/x/page/", "/x/m/play"),
+    "youku.com": ("/v_show/",),
+    "mgtv.com": ("/h/",),
+    "1905.com": ("/mdb/film/", "/v/"),
+    "youtube.com": ("/watch", "/playlist"),
+    "archive.org": ("/details/", "/embed/"),
+    "tv.sohu.com": ("/v/", "/tv/"),
+    "le.com": ("/ptv/", "/vplay/"),
+    "wetv.vip": ("/play/", "/cover/"),
+    "viki.com": ("/videos/",),
+    "netflix.com": ("/title/", "/watch"),
+    "primevideo.com": ("/detail/", "/gp/video"),
+    "disneyplus.com": ("/video/", "/series/", "/movies/"),
+    "justwatch.com": ("/",),
+}
 
 
 def _is_watch_content_url(url: str) -> bool:
-    """Reject platform search pages: they are not a link to the film itself."""
+    """Reject search pages and article pages: only a page that can play the film."""
     parsed = urlparse(url)
     host = (parsed.hostname or "").lower()
     path = (parsed.path or "/").lower()
@@ -1120,6 +1173,9 @@ def _is_watch_content_url(url: str) -> bool:
         return False
     if any(hint in (parsed.query or "").lower() for hint in QUERY_HINTS):
         return False
+    for domain, prefixes in CONTENT_PATHS.items():
+        if host == domain or host.endswith("." + domain):
+            return any(path.startswith(prefix) for prefix in prefixes)
     return True
 
 
