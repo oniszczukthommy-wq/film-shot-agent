@@ -1,0 +1,10 @@
+data/library/raw/
+data/library/thumbs/
+data/library/exports/
+data/library/*.sqlite3*
+.env
+__pycache__/
+.venv/
+*.pyc
+.pytest_cache/
+.ruff_cache/
