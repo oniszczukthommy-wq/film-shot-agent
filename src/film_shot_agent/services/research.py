@@ -16,6 +16,7 @@ import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from datetime import date
 from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session
@@ -313,7 +314,14 @@ def research(
     )
 
     messages: list[dict] = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {
+            "role": "system",
+            "content": (
+                SYSTEM_PROMPT
+                + f"\n\n当前日期：{date.today().isoformat()}。"
+                + "用户说「最近 / 今年 / 新片」时，以这个日期为准，不要推荐更早的旧片充数。"
+            ),
+        },
         {"role": "user", "content": question},
     ]
     steps = 0
@@ -351,6 +359,7 @@ def research(
 
     raw = _compose(ctx, question)
     payload = _normalise(raw, ctx, question)
+    _enrich_missing_titles(payload, ctx)
     payload["engine"] = {
         "model": settings.llm_model,
         "search": search_adapter.active_provider(settings),
@@ -552,16 +561,30 @@ def _tool_reviews(args: dict, ctx: ResearchContext) -> dict:
         f"{title} 豆瓣 短评",
         f"{title} IMDb 评分 评价",
     )
+    extracted_ratings: list[dict] = []
     for hit in _search_many(queries, ctx):
         if _is_review_domain(hit.url):
+            source = _domain_label(hit.url)
             items.append(
                 {
-                    "source": _domain_label(hit.url),
+                    "source": source,
                     "title": hit.title,
                     "summary": hit.snippet,
                     "url": hit.url,
                 }
             )
+            if source in {"豆瓣", "IMDb", "烂番茄", "Metacritic", "Letterboxd"}:
+                score = _extract_score(f"{hit.title} {hit.snippet}")
+                if score:
+                    rating = {
+                        "source": source,
+                        "score": score,
+                        "out_of": 10,
+                        "url": hit.url,
+                        "note": "搜索摘要",
+                    }
+                    ctx.record_rating(rating, title)
+                    extracted_ratings.append(rating)
     seen: set[str] = set()
     unique = []
     for item in items:
@@ -574,7 +597,7 @@ def _tool_reviews(args: dict, ctx: ResearchContext) -> dict:
         "title": title,
         "items": unique[:10],
         "tmdb_reviews": tmdb_reviews,
-        "ratings": tmdb_ratings,
+        "ratings": _merge_ratings(tmdb_ratings + extracted_ratings),
         "note": "只引用搜索摘要，没有抓取豆瓣/IMDb 页面全文；豆瓣没有公开 API。",
     }
 
@@ -687,6 +710,67 @@ def _compose(ctx: ResearchContext, question: str) -> dict:
     return parsed
 
 
+def _enrich_missing_titles(payload: dict, ctx: ResearchContext) -> None:
+    """If the composer named a title without ratings/watch, ask TMDB once more.
+
+    This is the difference between "the model forgot to call movie_facts" and "we
+    cannot show a rating": the lookup is deterministic and the name must match.
+    """
+    if not ctx.settings.has_tmdb:
+        return
+    for title in payload.get("titles", []):
+        if title.get("ratings") and title.get("watch"):
+            continue
+        try:
+            facts = tmdb_adapter.lookup(
+                title["name"], year=title.get("year"), settings=ctx.settings
+            )
+        except tmdb_adapter.TMDBError:
+            continue
+        if not (
+            _names_match(title["name"], facts.get("name", ""))
+            or _names_match(title["name"], facts.get("original_name", ""))
+        ):
+            continue
+        ctx.record_url(facts["url"], f"TMDB · {facts['name']}")
+        known_ratings = {item["url"] for item in title["ratings"]}
+        for rating in facts.get("ratings", []):
+            url = rating.get("url", "")
+            if not url or url in known_ratings:
+                continue
+            ctx.record_rating(rating, facts["name"])
+            title["ratings"].append(
+                {
+                    "source": rating["source"],
+                    "score": str(rating["score"]),
+                    "out_of": str(rating["out_of"]),
+                    "url": url,
+                    "note": "TMDB 结构化数据",
+                }
+            )
+            known_ratings.add(url)
+        known_watch = {item["url"] for item in title["watch"]}
+        for item in facts.get("watch", []):
+            url = item.get("url", "")
+            if not url or url in known_watch:
+                continue
+            ctx.record_watch(item, facts["name"])
+            title["watch"].append(
+                {
+                    "platform": item["platform"],
+                    "access": item.get("access_label", "需确认"),
+                    "url": url,
+                    "note": "TMDB / JustWatch",
+                }
+            )
+            known_watch.add(url)
+        title["watch"].sort(key=lambda item: ACCESS_ORDER.get(item["access"], 9))
+        for url in list(known_ratings | known_watch):
+            if url in ctx.citations and url not in {item["url"] for item in payload["citations"]}:
+                payload["citations"].append(ctx.citations[url])
+    payload["citations"] = _dedupe_citations(payload.get("citations", []))[:10]
+
+
 def _normalise(raw: dict, ctx: ResearchContext, question: str) -> dict:
     answer = _text(raw.get("answer"), MAX_ANSWER) or "我没有查到足够可靠的信息。"
     intent = str(raw.get("intent") or "").strip().lower()
@@ -697,7 +781,7 @@ def _normalise(raw: dict, ctx: ResearchContext, question: str) -> dict:
         if not isinstance(row, dict):
             continue
         name = _text(row.get("name"), 120)
-        if not name:
+        if not name or any(word in name for word in ("未确认片名", "未知片名", "待确认片名")):
             continue
         titles.append(_normalise_title(row, ctx))
     for title in titles:
@@ -759,6 +843,9 @@ def _normalise_title(row: dict, ctx: ResearchContext) -> dict:
             continue
         fact = ctx.rating_facts.get(url)
         if fact:
+            if not _names_match(name, fact.get("title", "")):
+                ctx.dropped += 1
+                continue
             source = fact["source"]
             score = fact["score"]
             out_of = fact["out_of"]
@@ -781,6 +868,7 @@ def _normalise_title(row: dict, ctx: ResearchContext) -> dict:
                 "note": note,
             }
         )
+    ratings = _merge_ratings(ratings)
     reviews = []
     for item in _as_list(row.get("reviews"))[:4]:
         if not isinstance(item, dict):
@@ -838,10 +926,46 @@ def _normalise_title(row: dict, ctx: ResearchContext) -> dict:
     }
 
 
+def _merge_ratings(items: list[dict]) -> list[dict]:
+    """One chip per source. Prefer the official item page over an article snippet."""
+    ranked = sorted(
+        items,
+        key=lambda item: (
+            item.get("source", ""),
+            0 if re.search(r"/(subject|title)/", item.get("url", "")) else 1,
+            -_float_score(item.get("score", "")),
+        ),
+    )
+    seen: set[str] = set()
+    out: list[dict] = []
+    for item in ranked:
+        source = item.get("source", "")
+        if not source or source in seen:
+            continue
+        seen.add(source)
+        out.append(item)
+    return out
+
+
+def _float_score(value: object) -> float:
+    try:
+        return float(str(value))
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def _names_match(left: str, right: str) -> bool:
     a = " ".join((left or "").casefold().split())
     b = " ".join((right or "").casefold().split())
-    return bool(a and b and (a in b or b in a))
+    if not a or not b:
+        return False
+    if re.findall(r"\d+", a) != re.findall(r"\d+", b):
+        return False
+    if a == b:
+        return True
+    if a in b or b in a:
+        return True
+    return False
 
 
 def _citations(raw: object, ctx: ResearchContext) -> list[dict]:
@@ -949,6 +1073,28 @@ def _domain_label(url: str) -> str:
     return host.replace("www.", "") or "网页"
 
 
+SCORE_PATTERNS = (
+    re.compile(r"(?:豆瓣|评分|得分|Rating)[^0-9]{0,10}(\d{1,2}(?:\.\d)?)\s*分?"),
+    re.compile(r"(\d{1,2}(?:\.\d)?)\s*分"),
+    re.compile(r"(\d{1,2}(?:\.\d)?)\s*/\s*10"),
+)
+
+
+def _extract_score(text: str) -> str:
+    """Pull a single rating number out of a search snippet, never out of thin air."""
+    for pattern in SCORE_PATTERNS:
+        match = pattern.search(text or "")
+        if not match:
+            continue
+        try:
+            value = float(match.group(1))
+        except ValueError:
+            continue
+        if 0 < value <= 10:
+            return f"{value:g}"
+    return ""
+
+
 def _infer_access(default: str, snippet: str) -> str:
     """Search snippets are a hint, never proof: free becomes "maybe free"."""
     text = snippet or ""
@@ -978,11 +1124,22 @@ def _is_watch_content_url(url: str) -> bool:
 
 
 def _count(payload: dict) -> int:
-    for key in ("results", "items", "web", "watch", "local", "alternatives"):
+    total = 0
+    for key in (
+        "results",
+        "items",
+        "web",
+        "local",
+        "ratings",
+        "reviews",
+        "tmdb_reviews",
+        "watch",
+        "alternatives",
+    ):
         value = payload.get(key)
         if isinstance(value, list):
-            return len(value)
-    return 1 if payload.get("ok") else 0
+            total += len(value)
+    return total or (1 if payload.get("ok") else 0)
 
 
 def _safe_args(args: dict) -> dict:

@@ -199,3 +199,96 @@ def test_tmdb_rating_is_attached_when_composer_omits_it(session):
             "note": "TMDB 结构化数据",
         }
     ]
+
+
+def test_sequel_ratings_do_not_cross_attach(session):
+    assert not service._names_match("沙丘", "沙丘2")
+    assert service._names_match("9号秘事", "9号秘事 第一季")
+    ctx = service.ResearchContext(
+        session=session,
+        settings=settings(),
+        llm=FakeLLM(),
+        search=fake_search,
+    )
+    dune1 = "https://www.themoviedb.org/movie/438631"
+    dune2 = "https://www.themoviedb.org/movie/693134"
+    ctx.record_rating({"source": "TMDB", "score": 7.8, "out_of": 10, "url": dune1}, "沙丘")
+    ctx.record_rating({"source": "TMDB", "score": 8.1, "out_of": 10, "url": dune2}, "沙丘2")
+    raw = {
+        "answer": "沙丘2 略高",
+        "intent": "rating",
+        "titles": [
+            {
+                "name": "沙丘2",
+                "ratings": [
+                    {"source": "TMDB", "score": "8.1", "out_of": "10", "url": dune2},
+                    {"source": "TMDB", "score": "7.8", "out_of": "10", "url": dune1},
+                ],
+            },
+            {
+                "name": "沙丘",
+                "ratings": [
+                    {"source": "TMDB", "score": "7.8", "out_of": "10", "url": dune1},
+                    {"source": "TMDB", "score": "8.1", "out_of": "10", "url": dune2},
+                ],
+            },
+        ],
+    }
+    out = service._normalise(raw, ctx, "沙丘2 和沙丘1 哪个评分高")
+    assert [r["url"] for r in out["titles"][0]["ratings"]] == [dune2]
+    assert [r["url"] for r in out["titles"][1]["ratings"]] == [dune1]
+
+
+def test_enrichment_adds_a_tmdb_rating_without_the_composer(session, monkeypatch):
+    ctx = service.ResearchContext(
+        session=session,
+        settings=settings(tmdb_api_key="test-tmdb"),
+        llm=FakeLLM(),
+        search=fake_search,
+    )
+    payload = {
+        "answer": "好看",
+        "titles": [{"name": "肖申克的救赎", "year": 1994, "ratings": [], "watch": []}],
+        "citations": [],
+    }
+    tmdb_url = "https://www.themoviedb.org/movie/278"
+    monkeypatch.setattr(
+        service.tmdb_adapter,
+        "lookup",
+        lambda *args, **kwargs: {
+            "name": "肖申克的救赎",
+            "original_name": "The Shawshank Redemption",
+            "url": tmdb_url,
+            "ratings": [
+                {"source": "TMDB", "score": 8.7, "out_of": 10, "url": tmdb_url}
+            ],
+            "watch": [],
+        },
+    )
+    service._enrich_missing_titles(payload, ctx)
+    assert payload["titles"][0]["ratings"] == [
+        {
+            "source": "TMDB",
+            "score": "8.7",
+            "out_of": "10",
+            "url": tmdb_url,
+            "note": "TMDB 结构化数据",
+        }
+    ]
+    assert payload["citations"] == [{"title": "TMDB · 肖申克的救赎", "url": tmdb_url}]
+
+
+def test_extract_score_from_snippets():
+    assert service._extract_score("豆瓣评分 8.6 分，评价人数很多") == "8.6"
+    assert service._extract_score("IMDb 8.8/10 · A thief") == "8.8"
+    assert service._extract_score("2024 年上映，片长 134 分钟") == ""
+
+
+def test_merge_ratings_prefers_item_page_and_one_per_source():
+    items = [
+        {"source": "豆瓣", "score": "8.1", "url": "https://movie.douban.com/review/1/"},
+        {"source": "豆瓣", "score": "8.6", "url": "https://movie.douban.com/subject/34874646/"},
+        {"source": "TMDB", "score": "8.4", "url": "https://www.themoviedb.org/movie/1"},
+    ]
+    merged = service._merge_ratings(items)
+    assert {(r["source"], r["score"]) for r in merged} == {("豆瓣", "8.6"), ("TMDB", "8.4")}

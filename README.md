@@ -231,6 +231,7 @@ curl -o data/library/subs/TOS-CH.srt https://download.blender.org/demo/movies/To
 ## 文档
 
 - [`docs/问片设计.md`](docs/问片设计.md) — 问片层：工具、证据闸门、边界、下一步
+- [`docs/问片验收-第1轮.md`](docs/问片验收-第1轮.md) — 10 条真实问题的结果、耗时和仍存在的边界
 - [`docs/设计取舍.md`](docs/设计取舍.md) — 为什么这么做，以及借了什么、没借什么
 - [`docs/后端自查.md`](docs/后端自查.md) — 全路由 + 恶意输入 + 并发走查，已知边界都在这里
 - [`docs/面试讲解.md`](docs/面试讲解.md) — 90 秒演示脚本 + 常见追问
