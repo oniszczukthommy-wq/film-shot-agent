@@ -1,0 +1,28 @@
+线上演示验证记录（2026-10-29，Render Singapore / Free / Docker）
+
+GET https://film-shot-agent.onrender.com/api/health
+  200 {"titles":2,"shots":244,"lines":76,"demo":true}
+
+GET https://film-shot-agent.onrender.com/api/meta
+  200 research={"enabled":true,"model":"deepseek-chat","search":"tavily","tmdb":true,"region":"CN"}
+
+GET https://film-shot-agent.onrender.com/ask
+  200，页面标题「问片 · 找电影、查口碑、认镜头、找台词」
+
+GET https://film-shot-agent.onrender.com/
+  200，顶部显示演示提示：线上演示站只带索引和缩略图；影片播放与切片请在本地运行，问片功能完整。
+
+POST https://film-shot-agent.onrender.com/api/research
+  {"message":"Is Oppenheimer worth watching? What are its ratings and where can I stream it?"}
+  200，12.6s
+  title: 奥本海默 / Oppenheimer
+  ratings: 豆瓣 8.8, IMDb 8.2, TMDB 8.0
+  watch: 哔哩哔哩 需确认
+  citations: 7
+
+浏览器真实提交
+  {"message":"《周处除三害》值得看吗，在哪看？"}
+  200，正常出片名卡片；IMDb 7.3 / TMDB 7.3；无确认播放页时答案与 caveat 明确写“未确认”。
+
+GitHub Actions keepalive
+  workflow_dispatch 运行成功，curl /api/health 返回 200；schedule 每 5 分钟。
