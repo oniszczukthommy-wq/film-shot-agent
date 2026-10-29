@@ -20,8 +20,11 @@ uv run uvicorn film_shot_agent.main:app --app-dir src --port 8000
 所以 clone 下来就能直接浏览、检索、看板；播放和切片需要影片本体，跑一次：
 
 ```bash
-./scripts/fetch_demo.sh   # 下载两部 CC BY 影片 + 字幕，重建索引（约 2 分钟）
+./scripts/fetch_demo.sh   # 下载两部 CC BY 影片 + 字幕，重建索引（约 10 分钟，含 620 MB 下载）
 ```
+
+脚本会新建 `film.sqlite3`，**不会覆盖**仓库里的 `demo.sqlite3`；
+之后应用优先读 `film.sqlite3`，没有时才回落到 demo 索引。
 
 自己换片子也一样：丢进 `data/library/raw/`，改 `scripts/ingest.py` 里的 `FILMS`，再跑一次 ingest。
 

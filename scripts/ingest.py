@@ -239,7 +239,8 @@ def main() -> int:
     parser.add_argument("--only", default="")
     args = parser.parse_args()
 
-    init_db()
+    # Building the index must target the real database, never the bundled demo copy.
+    init_db(allow_demo_fallback=False)
     if args.reset:
         with session_scope() as session:
             for model in (DeckItem, Deck, MetricEvent, Cue, Shot, Title):

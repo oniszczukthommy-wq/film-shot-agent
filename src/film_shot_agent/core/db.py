@@ -41,20 +41,21 @@ def resolve_database_url() -> str:
     return default
 
 
-def get_engine():
+def get_engine(*, allow_demo_fallback: bool = True):
     global _engine, _SessionLocal
     if _engine is None:
         settings = get_settings()
         settings.library_dir.mkdir(parents=True, exist_ok=True)
-        _engine = _make_engine(resolve_database_url())
+        url = resolve_database_url() if allow_demo_fallback else settings.database_url
+        _engine = _make_engine(url)
         _SessionLocal = sessionmaker(bind=_engine, expire_on_commit=False, future=True)
     return _engine
 
 
-def init_db() -> None:
+def init_db(*, allow_demo_fallback: bool = True) -> None:
     from film_shot_agent.domain import models  # noqa: F401  (register mappers)
 
-    Base.metadata.create_all(get_engine())
+    Base.metadata.create_all(get_engine(allow_demo_fallback=allow_demo_fallback))
 
 
 @contextmanager
