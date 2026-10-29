@@ -333,3 +333,9 @@ def test_watch_rows_are_deduped_per_platform():
     merged = service._merge_watch(items)
     assert [row["platform"] for row in merged] == ["哔哩哔哩", "优酷"]
     assert [row["access"] for row in merged] == ["需确认", "会员"]
+
+
+def test_imdb_score_can_come_from_item_page_title():
+    url = "https://www.imdb.com/title/tt15398776/"
+    assert service._is_official_rating_url(url)
+    assert service._extract_score("Oppenheimer (2023) ⭐ 8.2 | Biography") == "8.2"
