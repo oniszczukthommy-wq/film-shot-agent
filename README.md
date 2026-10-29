@@ -20,6 +20,8 @@ uv run uvicorn film_shot_agent.main:app --app-dir src --port 8000
 
 打开 <http://localhost:8000>（镜头库）或 <http://localhost:8000/ask>（问片）。
 
+**公网演示**：<https://film-shot-agent.onrender.com/ask>（Render 免费实例，线上不含影片本体；详见 [`docs/上线说明.md`](docs/上线说明.md)）。
+
 `.env` 三组配置：
 
 | 变量 | 作用 | 不填会怎样 |
