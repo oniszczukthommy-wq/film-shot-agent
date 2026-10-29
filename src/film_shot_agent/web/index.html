@@ -7,58 +7,83 @@
 <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
-<header class="topbar">
-  <div class="brand">SHOT<span>·</span>AGENT <small>cinematic shot &amp; line search</small></div>
-  <nav class="topnav" id="nav">
-    <button data-view="agent" aria-selected="true">助理</button>
-    <button data-view="shots">镜头</button>
-    <button data-view="lines">台词</button>
-    <button data-view="decks">参考板</button>
-  </nav>
-  <div class="spacer"></div>
-  <div class="stat" id="stat">—</div>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <div class="logo">SHOT<b>·</b>AGENT<i></i></div>
+    <div class="nav-links" id="nav">
+      <button data-view="agent" aria-selected="true">助理</button>
+      <button data-view="shots">镜头</button>
+      <button data-view="lines">台词</button>
+      <button data-view="decks">参考板</button>
+    </div>
+    <div class="nav-spacer"></div>
+    <div class="nav-stat" id="stat">—</div>
+  </div>
+</nav>
+
+<header class="hero" id="hero">
+  <div class="hero-blob a"></div>
+  <div class="hero-blob b"></div>
+  <div class="hero-blob c"></div>
+  <div class="wrap hero-inner">
+    <h1>一句话，找到<em>那一镜</em>。</h1>
+    <p class="sub" id="hero-sub">
+      244 个镜头全部由 ffmpeg 自动抽帧、算出调色板之后建索引。说你要什么画面，
+      或者一句台词，助理自己决定调哪个工具。
+    </p>
+    <form class="ask" id="agent-form">
+      <input id="agent-input" autocomplete="off"
+        placeholder="冷色调、暗一点的镜头 ／ 钢铁之泪里说 robot 的台词" />
+      <button class="btn" id="agent-send" type="submit">问助理</button>
+    </form>
+    <div class="suggests" id="suggests"></div>
+    <div id="answer-slot"></div>
+  </div>
 </header>
 
-<section class="agent" id="agent-panel">
-  <form class="agent-form" id="agent-form">
-    <input class="agent-input" id="agent-input" autocomplete="off"
-      placeholder="用一句话描述你要的画面或台词，例如：冷色调、暗一点的镜头 / 钢铁之泪里说 robot 的台词" />
-    <button class="agent-send" id="agent-send" type="submit">问助理</button>
-  </form>
-  <div class="chips" id="chips"></div>
-  <div class="agent-reply" id="agent-reply" hidden></div>
-</section>
+<div class="wrap">
+  <div class="stage">
+    <aside class="rail">
+      <section class="panel">
+        <h3>取色检索</h3>
+        <div class="picker">
+          <div class="picker-row">
+            <input type="color" id="shade" value="#3a6ea5" />
+            <span>画面主色</span>
+            <span class="val" id="shade-hex">#3a6ea5</span>
+          </div>
+          <div class="picker-row">
+            <span>容差</span>
+            <input type="range" id="distance" min="3" max="18" value="8" />
+            <span class="val" id="distance-v">8</span>
+          </div>
+          <div class="picker-row">
+            <span>最小占比</span>
+            <input type="range" id="proportion" min="0" max="50" value="3" />
+            <span class="val" id="proportion-v">3%</span>
+          </div>
+        </div>
+        <div style="margin-top:20px">
+          <button class="btn btn-sm" id="apply-shade" style="width:100%">按这个颜色找</button>
+        </div>
+      </section>
 
-<div class="layout">
-  <aside class="rail">
-    <h3>取色检索</h3>
-    <div class="picker">
-      <div class="picker-row">
-        <input type="color" id="shade" value="#3a6ea5" />
-        <span>画面主色</span>
-      </div>
-      <div class="picker-row">
-        <span>容差</span><input type="range" id="distance" min="3" max="18" value="8" />
-        <b id="distance-v" class="hint">8</b>
-      </div>
-      <div class="picker-row">
-        <span>最小占比</span><input type="range" id="proportion" min="0" max="50" value="3" />
-        <b id="proportion-v" class="hint">3%</b>
-      </div>
-    </div>
-    <div class="rail-actions">
-      <button id="apply-shade">按这个颜色找</button>
-    </div>
-    <div id="facets"></div>
-    <div class="rail-actions">
-      <button id="reset">清空筛选</button>
-      <button id="copy-link">复制查询链接</button>
-    </div>
-  </aside>
+      <section class="panel" id="facets-panel">
+        <div class="panel-head"><h3>筛选</h3></div>
+        <div id="facets"><p class="hint">问一句试试，或选下面的条件。</p></div>
+      </section>
 
-  <main class="main">
-    <div id="view"></div>
-  </main>
+      <section class="panel">
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm btn-quiet" id="reset" style="flex:1">清空</button>
+          <button class="btn btn-sm btn-quiet" id="copy-link" style="flex:1">复制链接</button>
+        </div>
+      </section>
+    </aside>
+
+    <main><div id="view"></div></main>
+  </div>
 </div>
 
 <div class="modal-backdrop" id="modal">
