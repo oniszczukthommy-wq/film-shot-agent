@@ -69,6 +69,13 @@ mark { background: rgba(0, 153, 255, 0.14); color: var(--color-sky-blue); border
 .graphite { color: var(--color-graphite); }
 .tabular { font-variant-numeric: tabular-nums; }
 
+/* ---------------- demo banner ---------------- */
+.demo-banner {
+  position: relative; z-index: 45; text-align: center;
+  padding: 8px 16px; background: var(--color-solar); color: #5b4706;
+  font-size: 13px; letter-spacing: -0.1px; border-bottom: 1px solid rgba(107, 82, 0, .12);
+}
+
 /* ---------------- nav ---------------- */
 .nav {
   position: sticky; top: 0; z-index: 40;

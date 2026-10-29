@@ -14,7 +14,7 @@ def client():
 
 def test_health_counts_seeded_library(client):
     body = client.get("/api/health").json()
-    assert body == {"titles": 2, "shots": 31, "lines": 4}
+    assert body == {"titles": 2, "shots": 31, "lines": 4, "demo": False}
 
 
 def test_facets_are_labelled(client):

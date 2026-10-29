@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: film-shot-agent
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: FILM_AGENT_LLM_API_KEY
+        sync: false
+      - key: FILM_AGENT_LLM_BASE_URL
+        value: https://api.deepseek.com/v1
+      - key: FILM_AGENT_LLM_MODEL
+        value: deepseek-chat
+      - key: FILM_AGENT_SEARCH_PROVIDER
+        value: auto
+      - key: FILM_AGENT_SEARCH_API_KEY
+        sync: false
+      - key: FILM_AGENT_TMDB_API_KEY
+        sync: false
+      - key: FILM_AGENT_REGION
+        value: CN
+      - key: FILM_AGENT_DEMO_MODE
+        value: "1"

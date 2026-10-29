@@ -73,6 +73,7 @@ def health(session: Session = Depends(get_session)) -> dict:
         "titles": session.scalar(select(func.count()).select_from(Title)),
         "shots": session.scalar(select(func.count()).select_from(Shot)),
         "lines": session.scalar(select(func.count()).select_from(Cue)),
+        "demo": get_settings().demo_mode,
     }
 
 

@@ -534,6 +534,7 @@ function setView(view) {
 async function boot() {
   const meta = await api("/api/health");
   $("#stat").textContent = `${meta.titles} 部 · ${meta.shots} 个镜头 · ${meta.lines} 条台词`;
+  if (meta.demo) $("#demo-banner").hidden = false;
 
   for (const suggestion of [
     "找冷色调、暗一点的镜头",

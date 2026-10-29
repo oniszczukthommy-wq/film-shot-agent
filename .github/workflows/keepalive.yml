@@ -1,0 +1,13 @@
+name: keepalive
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Warm the demo instance
+        run: curl -fsS --max-time 40 https://film-shot-agent.onrender.com/api/health

@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     research_cache_ttl: int = 3600
     research_max_question: int = 300
     research_tool_budget: int = 10
+    demo_mode: bool = False
 
     @property
     def has_llm(self) -> bool:
