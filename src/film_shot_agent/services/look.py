@@ -28,6 +28,18 @@ class Look:
     dominant_hex: str
 
 
+def normalize_hex(value: str | None) -> str | None:
+    """Accept #abc / abcdef only; return a 6-digit lowercase hex or None."""
+    if not value:
+        return None
+    candidate = value.strip().lstrip("#").lower()
+    if len(candidate) == 3 and all(ch in "0123456789abcdef" for ch in candidate):
+        candidate = "".join(ch * 2 for ch in candidate)
+    if len(candidate) == 6 and all(ch in "0123456789abcdef" for ch in candidate):
+        return candidate
+    return None
+
+
 def hex_to_rgb(value: str) -> tuple[int, int, int]:
     value = value.lstrip("#")
     return int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16)

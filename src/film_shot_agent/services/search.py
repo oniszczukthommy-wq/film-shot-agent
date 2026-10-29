@@ -14,7 +14,7 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
 from film_shot_agent.domain.models import Shot, Title
-from film_shot_agent.services.look import color_distance, hex_to_rgb
+from film_shot_agent.services.look import color_distance, hex_to_rgb, normalize_hex
 
 DIMENSIONS: tuple[str, ...] = (
     "title",
@@ -116,10 +116,11 @@ def parse_filters(segments: list[str]) -> ShotFilters:
         if key in DIMENSIONS or key in {"shade", "sort", "distance", "proportion"}:
             values[key] = value
 
-    shade = values.get("shade")
+    shade = normalize_hex(values.get("shade"))
     distance, proportion = 8, 3
-    if shade and "~" in shade:
-        shade, _, rest = shade.partition("~")
+    if values.get("shade") and "~" in values["shade"]:
+        raw_shade, _, rest = values["shade"].partition("~")
+        shade = normalize_hex(raw_shade)
         numbers = (rest.split("~") + ["", ""])[:2]
         distance = _clamp_int(numbers[0], 8, 0, 40)
         proportion = _clamp_int(numbers[1], 3, 0, 60)
@@ -132,7 +133,7 @@ def parse_filters(segments: list[str]) -> ShotFilters:
         aspect=values.get("aspect"),
         resolution=values.get("resolution"),
         length=values.get("length"),
-        shade=shade.lstrip("#") if shade else None,
+        shade=shade,
         distance=distance,
         proportion=proportion,
         sort=values.get("sort", "relevance"),

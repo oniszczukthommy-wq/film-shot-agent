@@ -19,6 +19,7 @@ from film_shot_agent.services import deck_export
 from film_shot_agent.services import decks as deck_service
 from film_shot_agent.services import lines as line_service
 from film_shot_agent.services import metrics as metric_service
+from film_shot_agent.services.look import normalize_hex
 from film_shot_agent.services.search import (
     FACET_LABELS,
     SORTS,
@@ -32,6 +33,15 @@ from film_shot_agent.services.search import (
 router = APIRouter()
 
 
+def _int_param(raw: str | None, default: int, *, low: int, high: int) -> int:
+    """Query strings are user input: never let a stray value become a 500."""
+    try:
+        value = int(raw) if raw not in (None, "") else default
+    except (TypeError, ValueError):
+        return default
+    return max(low, min(high, value))
+
+
 def _filters_from_query(request: Request) -> ShotFilters:
     params = request.query_params
     return ShotFilters(
@@ -43,13 +53,16 @@ def _filters_from_query(request: Request) -> ShotFilters:
         aspect=params.get("aspect") or None,
         resolution=params.get("resolution") or None,
         length=params.get("length") or None,
-        shade=(params.get("shade") or "").lstrip("#") or None,
-        distance=int(params.get("distance") or 8),
-        proportion=int(params.get("proportion") or 3),
-        sort=params.get("sort") or "relevance",
-        limit=min(int(params.get("limit") or 36), 120),
-        offset=max(int(params.get("offset") or 0), 0),
+        shade=normalize_hex(params.get("shade")),
+        distance=_int_param(params.get("distance"), 8, low=0, high=40),
+        proportion=_int_param(params.get("proportion"), 3, low=0, high=60),
+        sort=params.get("sort") if params.get("sort") in SORTS else "relevance",
+        limit=_int_param(params.get("limit"), 36, low=1, high=120),
+        offset=_int_param(params.get("offset"), 0, low=0, high=100_000),
     )
+
+
+
 
 
 @router.get("/api/health")
@@ -277,24 +290,40 @@ def meta() -> dict:
     return {"sorts": SORTS, "facet_labels": FACET_LABELS}
 
 
+def _safe_media_path(base: Path, name: str) -> Path | None:
+    """Resolve a media name inside `base`, refusing anything that escapes it."""
+    if "/" in name or "\\" in name or name in {"", ".", ".."}:
+        return None
+    root = base.resolve()
+    candidate = (root / name).resolve()
+    if not candidate.is_relative_to(root) or not candidate.is_file():
+        return None
+    return candidate
+
+
 def media_router() -> APIRouter:
     media = APIRouter()
     library = get_settings().library_dir
 
     @media.get("/media/thumbs/{name}")
     def thumb(name: str):
-        path = (library / "thumbs" / name).resolve()
-        if not path.is_file() or not str(path).startswith(str((library / "thumbs").resolve())):
+        path = _safe_media_path(library / "thumbs", name)
+        if path is None:
             return JSONResponse({"detail": "不存在。"}, status_code=404)
-        return FileResponse(path, media_type="image/jpeg")
+        # Thumbnails are content-addressed by shot id and never rewritten in place.
+        return FileResponse(
+            path, media_type="image/jpeg", headers={"cache-control": "public, max-age=86400"}
+        )
 
     @media.get("/media/exports/{name}")
     def export(name: str):
-        path = (library / "exports" / name).resolve()
-        if not path.is_file() or not str(path).startswith(str((library / "exports").resolve())):
+        path = _safe_media_path(library / "exports", name)
+        if path is None:
             return JSONResponse({"detail": "不存在。"}, status_code=404)
         media_type = "video/mp4" if path.suffix == ".mp4" else "image/gif"
-        return FileResponse(path, media_type=media_type)
+        return FileResponse(
+            path, media_type=media_type, headers={"cache-control": "public, max-age=86400"}
+        )
 
     return media
 

@@ -63,3 +63,17 @@ def test_falls_back_to_master_file_when_no_web_copy(client, session, tmp_path):
     response = client.get("/media/video/beta")
     assert response.status_code == 200
     assert response.content == b"master-bytes"
+
+
+def test_thumb_rejects_sibling_directory_prefix_trick(client):
+    """`thumbs-evil/` must not pass a plain string-prefix check."""
+    library = get_settings().library_dir
+    evil = library / "thumbs-evil"
+    evil.mkdir(exist_ok=True)
+    (evil / "x.jpg").write_bytes(b"x")
+    assert client.get("/media/thumbs-evil/x.jpg").status_code == 404
+
+
+def test_thumb_rejects_encoded_traversal(client):
+    assert client.get("/media/thumbs/..%2Ffilm.sqlite3").status_code == 404
+    assert client.get("/media/thumbs/%2e%2e").status_code == 404
