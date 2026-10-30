@@ -1220,7 +1220,7 @@ def _apply_subtitle_facts(payload: dict, ctx: ResearchContext, question: str) ->
         caveats.append("豆瓣分数来自 33 台词收录的条目数据，非实时抓取。")
     caveats.insert(
         0,
-        "台词时间点和原句来自 33 台词字幕库，不同片源可能相差几秒；片段与版权归原片方，仅供个人核对。",
+        "台词时间点和原句来自 33 台词字幕库，不同片源可能相差几秒；播放、截图、剪切需在 33 台词登录后完成，版权归原片方。",
     )
     payload["caveats"] = _dedupe_text(caveats, max_items=6, max_len=220)
 

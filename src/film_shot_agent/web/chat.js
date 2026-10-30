@@ -140,10 +140,13 @@ function sceneBlock(scene) {
       el("button", { class: "btn btn-sm btn-quiet", type: "button", onclick: () => openContext(scene) }, "看前后文"),
     );
   }
-  if (scene.clip_url) actions.append(outbound(scene.clip_url, "看候选片段 ↗", "btn btn-sm"));
-  if (scene.source_url) actions.append(outbound(scene.source_url, "在 33 台词看这一句 ↗", "btn btn-sm btn-quiet"));
+  if (scene.source_url) actions.append(outbound(scene.source_url, "去 33 台词播放/截图 ↗", "btn btn-sm"));
+  if (scene.clip_url) actions.append(outbound(scene.clip_url, "看候选片段 ↗", "btn btn-sm btn-quiet"));
   if (actions.childElementCount) block.append(actions);
   else block.append(el("p", { class: "hint" }, "暂无可核对的片段；时间点和平台跳转仅供参考。"));
+  if (scene.source_url) {
+    block.append(el("p", { class: "scene-note" }, "播放、截图、剪切在 33 台词完成（需登录/积分）；本站只做检索和字幕前后文。"));
+  }
   return block;
 }
 
@@ -198,6 +201,14 @@ async function openContext(scene) {
       );
     }
     if (!list.childElementCount) list.append(el("p", { class: "context-loading" }, "没有拿到前后文。"));
+    if (scene.source_url) {
+      panel.append(
+        el("div", { class: "context-actions" },
+          el("span", {}, "前后文来自 33 台词公开字幕；播放/截图需登录 33 台词。"),
+          outbound(scene.source_url, "去 33 台词播放/截图 ↗", "btn btn-sm"),
+        ),
+      );
+    }
   } catch (error) {
     list.replaceChildren(el("p", { class: "context-loading" }, error.message || "字幕读取失败，请稍后再试。"));
   }
