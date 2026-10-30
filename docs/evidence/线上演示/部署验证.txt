@@ -26,3 +26,32 @@ POST https://film-shot-agent.onrender.com/api/research
 
 GitHub Actions keepalive
   workflow_dispatch 运行成功，curl /api/health 返回 200；schedule 每 5 分钟。
+
+
+===== 2026-10-30 新版部署（commit 41ca41b） =====
+
+GET https://film-shot-agent.onrender.com/
+  200，加载 /static/chat.js（首页是对话框）
+
+GET https://film-shot-agent.onrender.com/library
+  200，镜头库正常
+
+GET https://film-shot-agent.onrender.com/ask
+  302 → https://film-shot-agent.onrender.com/
+
+POST /api/chat  {"message":"“希望是美好的，也许是人间至善”出自哪部电影？"}
+  200，11.6s
+  title: 肖申克的救赎 / 1994
+  scene.timecode: 02:15:48
+  scene.subtitle_id: 19288709
+  poster: https://oss.agilestudio.cn/ssv/20200806JgEwaKRh.jpg
+  poster_fallback: https://image.tmdb.org/t/p/w300/aAdnwqwkKX5PPcr8EdtaiA8AZVl.jpg
+  ratings: 豆瓣 9.7（33台词收录，非实时）+ TMDB 8.7
+
+GET /api/chat/subtitles/3019118
+  200，返回 10 条前后字幕，命中行 00:03:41 高亮
+
+GET /api/poster?url=...oss.agilestudio.cn...
+  200 image/jpeg 24 KB（同源代理；失败时前端用 TMDB 海报兜底）
+
+浏览器：首页、台词卡片、看前后文、/library 均通过；桌面截图见本目录。
