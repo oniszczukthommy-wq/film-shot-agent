@@ -163,7 +163,11 @@ def test_chat_page_and_api():
         assert client.get("/api/chat/health").json()["ok"] is True
         meta = client.get("/api/chat/meta").json()
         assert "enabled" in meta
+        assert meta["subtitles"] is True
         assert "腾讯视频" in meta["platforms"]
+        bad = client.post("/api/chat", json={"message": ""})
+        assert bad.status_code == 422
+        assert bad.json()["error"]["code"] == "invalid_request"
 
         original = service.chat
 

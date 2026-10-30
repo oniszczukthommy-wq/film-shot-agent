@@ -54,6 +54,7 @@ def chat_meta() -> dict:
         "search": active_provider(settings),
         "tmdb": settings.has_tmdb,
         "region": settings.region,
+        "subtitles": settings.subtitle_search,
         "platforms": [
             "哔哩哔哩",
             "腾讯视频",

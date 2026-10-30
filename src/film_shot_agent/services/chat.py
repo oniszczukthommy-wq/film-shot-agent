@@ -1205,6 +1205,12 @@ def _apply_subtitle_facts(payload: dict, ctx: ResearchContext, question: str) ->
                 known_urls.add(url)
     payload["citations"] = _dedupe_citations(citations)[:12]
     caveats = payload.get("caveats") or []
+    for index, item in enumerate(caveats):
+        if "时间点和候选片段来自搜索/字幕候选" in str(item):
+            caveats[index] = (
+                "候选片段来自搜索，未逐帧核对；时间点来自 33 台词字幕库，"
+                "不同片源可能相差几秒。"
+            )
     if any(
         "33台词收录" in str(rating.get("note") or "")
         for title in titles

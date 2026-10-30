@@ -81,6 +81,7 @@ function answerCard(data) {
         el("span", {}, `模型 ${data.engine.model || "—"}`),
         el("span", {}, `搜索 ${data.engine.search || "—"}`),
         el("span", {}, data.engine.tmdb ? "TMDB 已连接" : "TMDB 未配置"),
+        el("span", {}, data.engine.subtitles === "off" ? "字幕库未启用" : "33台词已连接"),
         el("span", {}, `${data.usage?.steps ?? 0} 步 · ${data.usage?.completion_tokens ?? 0} tokens`),
       ),
     );
@@ -537,7 +538,7 @@ function boot() {
         $("#engine-stat").textContent = "模型未配置";
         return;
       }
-      $("#engine-stat").textContent = `联网搜索 · ${data.model || "已连接"}`;
+      $("#engine-stat").textContent = `联网搜索 · ${data.subtitles ? "33 台词 · " : ""}${data.model || "已连接"}`;
     })
     .catch(() => {});
   load();

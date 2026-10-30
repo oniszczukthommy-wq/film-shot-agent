@@ -4,8 +4,9 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from film_shot_agent.api.chat_routes import router as chat_router
@@ -28,6 +29,18 @@ app = FastAPI(
 app.include_router(router)
 app.include_router(chat_router)
 app.include_router(media_router())
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(_request: Request, exc: RequestValidationError) -> JSONResponse:
+    """One error shape for every bad request: {"error": {"code", "message"}}."""
+    first = exc.errors()[0] if exc.errors() else {}
+    location = ".".join(str(part) for part in first.get("loc", [])[1:]) or "body"
+    message = str(first.get("msg") or "请求参数不合法。")
+    return JSONResponse(
+        {"error": {"code": "invalid_request", "message": f"{location}: {message}"}},
+        status_code=422,
+    )
 
 _STATIC = web_dir()
 if _STATIC.exists():
