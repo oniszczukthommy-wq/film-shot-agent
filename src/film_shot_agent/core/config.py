@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     search_provider: str = "auto"  # auto | tavily | brave | duckduckgo
     search_api_key: str = ""
     tmdb_api_key: str = ""
+    subtitle_search: bool = True  # 33台词字幕库（无 Key，个人研究用）
     region: str = "CN"
     research_cache_ttl: int = 3600
     research_max_question: int = 300

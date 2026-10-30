@@ -15,11 +15,21 @@ def client():
         yield active
 
 
-def test_ask_page_is_served(client):
-    response = client.get("/ask")
-    assert response.status_code == 200
-    assert "问片" in response.text
-    assert "/static/ask.js" in response.text
+def test_home_is_the_chat_page(client):
+    page = client.get("/")
+    assert page.status_code == 200
+    assert "问片" in page.text
+    assert "/static/chat.js" in page.text
+    assert client.get("/chat").status_code == 200
+
+
+def test_ask_redirects_home_and_library_still_works(client):
+    response = client.get("/ask", follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["location"] == "/"
+    library = client.get("/library")
+    assert library.status_code == 200
+    assert "/static/app.js" in library.text
 
 
 def test_meta_reports_research_without_secrets(client):

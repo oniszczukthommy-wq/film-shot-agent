@@ -2,7 +2,7 @@
 
 一个可以现场跑起来的影视 personal agent：**问一部片，给你能核对的答案；用一句话找画面、找台词，把结果剪成 GIF，收进参考板。**
 
-- **问片**（`/ask`）：找片、查评分/口碑、认镜头、找台词；联网搜索，评分和观看链接带来源，免费渠道优先。
+- **问片**（`/chat`）：一个对话框，给一句台词找电影/时间点/片段；也能找片、查评分/口碑、认镜头。联网搜索 + 33 台词字幕库，评分和观看链接带来源。
 - **镜头库**（`/`）：两部 CC BY 3.0 开源电影的 244 个镜头，可筛选、播放、切片、导出参考板。
 
 镜头素材全部是 **CC BY 3.0 授权**的开源电影（Blender Foundation），所以每个镜头都可以合法切片、导出、分发。
@@ -18,15 +18,15 @@ uv sync --group dev
 uv run uvicorn film_shot_agent.main:app --app-dir src --port 8000
 ```
 
-打开 <http://localhost:8000>（镜头库）或 <http://localhost:8000/ask>（问片）。
+打开 <http://localhost:8000/chat>（问片）或 <http://localhost:8000>（镜头库）。旧入口 `/ask` 会跳转到 `/chat`。
 
-**公网演示**：<https://film-shot-agent.onrender.com/ask>（Render 免费实例，线上不含影片本体；详见 [`docs/上线说明.md`](docs/上线说明.md)）。
+**公网演示**：<https://film-shot-agent.onrender.com/chat>（Render 免费实例，线上不含影片本体；详见 [`docs/上线说明.md`](docs/上线说明.md)）。
 
 `.env` 三组配置：
 
 | 变量 | 作用 | 不填会怎样 |
 | --- | --- | --- |
-| `FILM_AGENT_LLM_API_KEY` / `_BASE_URL` / `_MODEL` | 问片的模型，OpenAI 兼容接口 | `/ask` 返回 503，镜头库照常 |
+| `FILM_AGENT_LLM_API_KEY` / `_BASE_URL` / `_MODEL` | 问片的模型，OpenAI 兼容接口 | `/chat` 返回 503，镜头库照常 |
 | `FILM_AGENT_TMDB_API_KEY` | 结构化评分、评论、合法观看渠道（免费优先） | 只能靠搜索摘要，评分可能显示不出来 |
 | `FILM_AGENT_SEARCH_API_KEY` / `_PROVIDER` | Tavily / Brave | 用 DuckDuckGo + 360 免费兜底，偶尔会被限流 |
 
@@ -45,7 +45,7 @@ uv run uvicorn film_shot_agent.main:app --app-dir src --port 8000
 验证：
 
 ```bash
-uv run pytest        # 90 个离线测试，不需要 ffmpeg、不联网
+uv run pytest        # 111 个离线测试，不需要 ffmpeg、不联网
 uv run ruff check .
 ```
 
@@ -120,13 +120,13 @@ trace: search_shots {"color_temp":"cool","brightness":"dark"} → 31 条 / 1ms
 
 ## 问片是怎么做到"能核对"的
 
-`/ask` 不是让模型直接背书，而是一个**研究循环**：
+`/chat` 不是让模型直接背书，而是一个**研究循环**：
 
 ```
 问题 → 模型决定调哪个工具 → 执行 → 证据回填 → 再决定 → 整理成 JSON
 ```
 
-工具只有六个：
+工具只有七个：
 
 | 工具 | 做什么 | 证据长什么样 |
 | --- | --- | --- |
@@ -134,7 +134,8 @@ trace: search_shots {"color_temp":"cool","brightness":"dark"} → 31 条 / 1ms
 | `movie_facts` | TMDB 查年份/评分/评论/观看渠道 | 结构化字段 |
 | `where_to_watch` | 找合法平台，免费优先 | 平台 + 免费/会员/付费 + 链接 |
 | `reviews` | 豆瓣 / IMDb / 烂番茄摘要 | 来源 + 摘要 + 链接 |
-| `search_quote` | 台词找电影，先查本地片库 | 时间点 + 镜头 + 网页结果 |
+| `search_subtitles` | 33 台词字幕库查一句台词（中/英字幕索引） | 片名 + 精确时间点 + 双语原句 + 前后句 + 海报 + 豆瓣分 |
+| `search_quote` | 台词找电影，先查字幕库和本地片库 | 时间点 + 镜头 + 网页结果 |
 | `identify_scene` | 模糊画面描述找电影 | 多个候选线索 |
 
 三道硬约束，都是确定性代码，不靠模型自觉：
@@ -145,13 +146,22 @@ trace: search_shots {"color_temp":"cool","brightness":"dark"} → 31 条 / 1ms
 
 所以它会给候选、给证据、给置信度，也会说"没查到"。它不会为了好看编一个豆瓣分。
 
+### 33 台词字幕库
+
+`search_subtitles` 直接调用 [33 台词](https://app.33tc.net/) 的公开搜索（`langType=0` 英文字幕、`langType=1` 中文字幕），
+用来补上"一句台词→哪部片、第几分钟"这一步。它返回片名、精确时间点、原句、中文翻译、前后句、海报和收录的豆瓣分。
+
+- 没有官方 API，也没有 Key；用的是它网页自己的搜索接口。它变了或挂了，代码会记录一条 caveat 并回落到 Tavily/本地片库，不会让回答失败。
+- 只在个人研究场景下一次查一句，不批量抓取、不落地字幕库、不暴露视频地址；片段与版权归原片方。
+- 想关掉：`FILM_AGENT_SUBTITLE_SEARCH=0`。
+
 ### 边界（这也是产品的一部分）
 
 | 你要的 | 现在能做到 | 为什么 |
 | --- | --- | --- |
 | 找片 + 免费优先 | ✅ | TMDB 的 JustWatch 数据分 free/ads/flatrate/rent/buy；没有 TMDB 时用搜索结果里的官方内容页兜底（免费只能标「可能免费」） |
 | 评分 + 观众评价 | ✅（有 TMDB Key 时最稳） | 豆瓣没有公开 API，只引用搜索摘要 + 豆瓣页面链接，不抓取 |
-| 台词找电影 | ✅ | 本地片库精确到时间点；全网台词给候选和出处 |
+| 台词找电影 | ✅ | 33 台词字幕库能给片名、精确时间点和双语原句；库外台词回落到联网搜索，只给候选和出处，不编时间点 |
 | 模糊镜头找电影 | ⚠️ 只给候选 | 没有全电影镜头库；文字描述是研究题，不是唯一解。截图识别在二期 |
 | 不碰盗版 | ✅ | 观看链接有平台白名单，网盘/磁力/种子不会出现 |
 
@@ -165,6 +175,7 @@ src/film_shot_agent/
 ├── adapters/search.py    # DuckDuckGo / 360 / Tavily / Brave
 ├── adapters/llm.py       # OpenAI 兼容 chat + tool calling
 ├── adapters/tmdb.py      # 评分、评论、JustWatch 观看渠道
+├── adapters/thirtythree.py # 33 台词字幕库（无 Key，个人研究用；失败自动回落）
 ├── services/
 │   ├── look.py           # 调色板 + 亮度/对比度/饱和度/冷暖
 │   ├── search.py         # 筛选、路径式查询、分面计数
@@ -235,6 +246,7 @@ curl -o data/library/subs/TOS-CH.srt https://download.blender.org/demo/movies/To
 - [`docs/问片设计.md`](docs/问片设计.md) — 问片层：工具、证据闸门、边界、下一步
 - [`docs/问片验收-第1轮.md`](docs/问片验收-第1轮.md) — 第一轮 10 条真实问题的结果与修复
 - [`docs/问片验收-第2轮.md`](docs/问片验收-第2轮.md) — 第二轮 10 条：9 命中 / 1 部分 / 0 错误，平均 52 秒
+- [`docs/问片验收-第3轮.md`](docs/问片验收-第3轮.md) — 接入 33 台词字幕库：给台词直接出片名 + 时间点 + 双语台词 + 海报
 - [`docs/设计取舍.md`](docs/设计取舍.md) — 为什么这么做，以及借了什么、没借什么
 - [`docs/后端自查.md`](docs/后端自查.md) — 全路由 + 恶意输入 + 并发走查，已知边界都在这里
 - [`docs/面试讲解.md`](docs/面试讲解.md) — 90 秒演示脚本 + 常见追问

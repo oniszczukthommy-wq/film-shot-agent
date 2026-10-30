@@ -207,6 +207,7 @@ def _providers(payload: dict, region: str) -> list[dict]:
                     "access_label": ACCESS_LABELS[access],
                     "url": link,
                     "note": "TMDB / JustWatch 数据",
+                    "direct": True,
                 }
             )
     providers.sort(key=lambda item: ACCESS_ORDER.get(item["access"], 9))

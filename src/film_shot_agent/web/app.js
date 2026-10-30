@@ -81,7 +81,7 @@ function pathString() {
 }
 
 function syncUrl() {
-  history.replaceState(null, "", state.view === "agent" ? "/" : pathString());
+  history.replaceState(null, "", state.view === "agent" ? "/library" : pathString());
 }
 
 async function api(path, options) {

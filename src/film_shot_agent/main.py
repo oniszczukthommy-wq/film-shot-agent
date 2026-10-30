@@ -5,9 +5,10 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from film_shot_agent.api.chat_routes import router as chat_router
 from film_shot_agent.api.routes import media_router, router, web_dir
 from film_shot_agent.core.db import init_db
 
@@ -25,6 +26,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.include_router(router)
+app.include_router(chat_router)
 app.include_router(media_router())
 
 _STATIC = web_dir()
@@ -34,13 +36,26 @@ if _STATIC.exists():
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> HTMLResponse:
+    """The product is the dialog: quote → film, ratings, where to watch."""
+    return _page("chat.html")
+
+
+@app.get("/ask")
+def ask() -> RedirectResponse:
+    """The old research UI is superseded by the one-dialog chat page."""
+    return RedirectResponse("/", status_code=302)
+
+
+@app.get("/chat", response_class=HTMLResponse)
+def chat_page() -> HTMLResponse:
+    """Alias for the home page, kept for old links."""
+    return _page("chat.html")
+
+
+@app.get("/library", response_class=HTMLResponse)
+def library_page() -> HTMLResponse:
+    """The licensed shot library lives beside the product, not at the root."""
     return _page("index.html")
-
-
-@app.get("/ask", response_class=HTMLResponse)
-def ask() -> HTMLResponse:
-    """Research UI: find a film, check ratings, trace a quote."""
-    return _page("ask.html")
 
 
 def _page(name: str) -> HTMLResponse:
