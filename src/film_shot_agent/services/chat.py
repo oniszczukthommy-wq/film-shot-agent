@@ -944,6 +944,8 @@ def _enrich_missing_titles(payload: dict, ctx: ResearchContext) -> None:
             title["kind"] = facts.get("kind", "电影")
         if not title.get("poster"):
             title["poster"] = facts.get("poster") or ""
+        elif facts.get("poster") and facts["poster"] != title["poster"]:
+            title["poster_fallback"] = facts["poster"]
         if not title.get("original_name") and facts.get("original_name"):
             title["original_name"] = facts["original_name"]
         title["ratings"] = _merge_ratings(title["ratings"])

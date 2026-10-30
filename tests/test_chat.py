@@ -198,6 +198,14 @@ def test_subtitle_context_endpoint(monkeypatch):
         assert client.get("/api/chat/subtitles/0").status_code == 400
 
 
+def test_poster_proxy_only_allows_trusted_hosts():
+    with TestClient(app) as client:
+        bad = client.get("/api/poster", params={"url": "https://example.com/a.jpg"})
+        assert bad.status_code == 400
+        local = client.get("/api/poster", params={"url": "http://127.0.0.1/a.jpg"})
+        assert local.status_code == 400
+
+
 def test_scene_clip_enrichment_requires_title_match():
     ctx = service.ResearchContext(
         settings=settings(),

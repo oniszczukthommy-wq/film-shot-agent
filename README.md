@@ -18,9 +18,9 @@ uv sync --group dev
 uv run uvicorn film_shot_agent.main:app --app-dir src --port 8000
 ```
 
-打开 <http://localhost:8000/chat>（问片）或 <http://localhost:8000>（镜头库）。旧入口 `/ask` 会跳转到 `/chat`。
+打开 <http://localhost:8000/>（问片）或 <http://localhost:8000/library>（镜头库）。旧入口 `/ask` 会跳回问片首页。
 
-**公网演示**：<https://film-shot-agent.onrender.com/chat>（Render 免费实例，线上不含影片本体；详见 [`docs/上线说明.md`](docs/上线说明.md)）。
+**公网演示**：<https://film-shot-agent.onrender.com/>（Render 免费实例，线上不含影片本体；详见 [`docs/上线说明.md`](docs/上线说明.md)）。
 
 `.env` 三组配置：
 
@@ -247,6 +247,7 @@ curl -o data/library/subs/TOS-CH.srt https://download.blender.org/demo/movies/To
 - [`docs/问片验收-第1轮.md`](docs/问片验收-第1轮.md) — 第一轮 10 条真实问题的结果与修复
 - [`docs/问片验收-第2轮.md`](docs/问片验收-第2轮.md) — 第二轮 10 条：9 命中 / 1 部分 / 0 错误，平均 52 秒
 - [`docs/问片验收-第3轮.md`](docs/问片验收-第3轮.md) — 接入 33 台词字幕库：给台词直接出片名 + 时间点 + 双语台词 + 海报
+- [`docs/33台词播放链路.md`](docs/33台词播放链路.md) — 33台词的搜索、video.js/HLS 播放、云截图、云剪切接口拆解，以及我们复用了什么
 - [`docs/设计取舍.md`](docs/设计取舍.md) — 为什么这么做，以及借了什么、没借什么
 - [`docs/后端自查.md`](docs/后端自查.md) — 全路由 + 恶意输入 + 并发走查，已知边界都在这里
 - [`docs/面试讲解.md`](docs/面试讲解.md) — 90 秒演示脚本 + 常见追问

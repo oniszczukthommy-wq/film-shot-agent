@@ -274,17 +274,32 @@ function filmCard(title) {
     body.append(list);
   }
 
+  return el("article", { class: "film-card" }, posterNode(title), body);
+}
+
+function posterNode(title) {
+  const placeholder = el("div", { class: "film-no-poster" }, "暂无海报");
   const poster = safeUrl(title.poster);
-  const media = poster
-    ? el("img", {
-        class: "film-poster",
-        src: poster,
-        alt: `${title.name} 海报`,
-        loading: "lazy",
-        referrerPolicy: "no-referrer",
-      })
-    : el("div", { class: "film-no-poster" }, "暂无海报");
-  return el("article", { class: "film-card" }, media, body);
+  const fallback = safeUrl(title.poster_fallback);
+  const proxied = (url) => (url ? `/api/poster?url=${encodeURIComponent(url)}` : "");
+  if (!poster && !fallback) return placeholder;
+  const img = el("img", {
+    class: "film-poster",
+    src: proxied(poster || fallback),
+    alt: `${title.name} 海报`,
+    loading: "lazy",
+    referrerPolicy: "no-referrer",
+  });
+  let stage = poster ? 0 : 1;
+  img.addEventListener("error", () => {
+    if (stage === 0 && fallback) {
+      stage = 1;
+      img.src = proxied(fallback);
+      return;
+    }
+    img.replaceWith(placeholder);
+  });
+  return img;
 }
 
 function titlesSection(titles) {
