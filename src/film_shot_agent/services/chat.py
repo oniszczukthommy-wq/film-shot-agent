@@ -893,7 +893,13 @@ def _enrich_missing_titles(payload: dict, ctx: ResearchContext) -> None:
     if not ctx.settings.has_tmdb:
         return
     for title in payload.get("titles", []):
-        if title.get("ratings") and title.get("watch"):
+        # 33台词 posters live on a China CDN that Render cannot always reach, so a
+        # TMDB fallback is worth one extra lookup even when ratings/watch are present.
+        needs_fallback = (
+            str(title.get("poster") or "").startswith("https://oss.agilestudio.cn/")
+            and not title.get("poster_fallback")
+        )
+        if title.get("ratings") and title.get("watch") and not needs_fallback:
             continue
         try:
             facts = tmdb_adapter.lookup(
