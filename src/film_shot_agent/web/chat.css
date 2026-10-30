@@ -5,6 +5,17 @@
 .chat-body { padding-bottom: 132px; }
 .chat-main { padding-bottom: 24px; }
 .chat-intro { padding: 64px 0 28px; }
+.intro-danmaku {
+  position: relative; height: 264px; margin-top: 28px;
+  overflow: hidden; pointer-events: none;
+  mask-image: linear-gradient(to right, transparent, #000 5%, #000 95%, transparent);
+}
+.intro-danmaku-line {
+  position: absolute; left: 0; white-space: nowrap;
+  padding: 8px 20px; border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, .66); color: var(--color-graphite);
+  font-size: 15px; line-height: 22px; will-change: transform;
+}
 .chat-thread {
   display: flex; flex-direction: column; gap: 28px;
   max-width: 920px; margin: 0 auto; padding: 12px 0 40px;
@@ -89,8 +100,6 @@
   .chat-body { padding-bottom: 168px; }
   .chat-body .nav-inner { gap: 6px; }
   .chat-body #new-chat { padding: 8px 12px; font-size: 13px; white-space: nowrap; }
-  .chat-body .nav-links a[href*="github"] { display: none; }
-  .chat-body .nav-links { overflow: visible; }
   .chat-intro { padding: 44px 0 20px; }
   .chat-thread { gap: 20px; padding-top: 8px; }
   .chat-assistant .ask-answer-card { padding: 22px; }

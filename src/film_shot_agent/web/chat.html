@@ -7,19 +7,15 @@
 <link rel="stylesheet" href="/static/style.css" />
 <link rel="stylesheet" href="/static/ask.css" />
 <link rel="stylesheet" href="/static/chat.css" />
+<link rel="stylesheet" href="/static/watchlist.css" />
 </head>
 <body class="chat-body">
 
 <nav class="nav">
   <div class="nav-inner">
     <div class="logo">SHOT<b>·</b>AGENT<i></i></div>
-    <div class="nav-links">
-      <a href="/" aria-current="page">问片</a>
-      <a href="/library">镜头库</a>
-      <a href="https://github.com/oniszczukthommy-wq/film-shot-agent" target="_blank" rel="noopener">GitHub</a>
-    </div>
     <div class="nav-spacer"></div>
-    <div class="nav-stat" id="engine-stat">联网搜索 · 来源可点</div>
+    <button class="btn btn-sm btn-quiet" id="open-watchlist" type="button">我的片单 <span id="watchlist-count">0</span></button>
     <button class="btn btn-sm btn-quiet" id="new-chat" type="button">新对话</button>
   </div>
 </nav>
@@ -31,17 +27,36 @@
   <div class="wrap hero-inner">
     <div class="ask-kicker">ONE DIALOG · FILM AGENT</div>
     <h1>一句话，找到<em>那部片</em>。</h1>
-    <p class="sub">
-      给一句台词，查电影、角色、场景和候选片段；查评分、口碑、所有平台跳转。
-      不装本地片库，不下载影片。
-    </p>
-    <div class="suggests" id="suggestions"></div>
   </div>
+  <div class="intro-danmaku" id="suggestions" aria-hidden="true"></div>
 </header>
 
 <main class="wrap chat-main">
   <div id="thread" class="chat-thread" aria-live="polite"></div>
 </main>
+
+<dialog class="watchlist-dialog" id="watchlist" aria-labelledby="watchlist-heading">
+  <header class="watchlist-head">
+    <div><p class="watchlist-kicker">MY FILM NOTEBOOK</p><h2 id="watchlist-heading">把想看的，留给下一次。</h2></div>
+    <button class="btn btn-sm btn-quiet" id="close-watchlist" type="button" aria-label="关闭片单">关闭</button>
+  </header>
+  <p class="watchlist-hint">片单仅保存在当前浏览器，不上传。可导出备份；清空聊天不会删除片单。</p>
+  <div class="watchlist-stats" id="watchlist-stats"></div>
+  <div class="watchlist-tools">
+    <input id="watchlist-search" type="search" aria-label="搜索片单" placeholder="搜索片名、年份或备注" maxlength="200" />
+    <select id="watchlist-filter" aria-label="观看状态"><option value="all">全部状态</option><option value="want">想看</option><option value="watched">已看</option></select>
+    <button class="btn btn-sm btn-quiet" id="export-watchlist" type="button">导出备份</button>
+    <button class="btn btn-sm btn-quiet" id="import-watchlist" type="button">导入备份</button>
+    <input id="watchlist-file" type="file" accept=".json,application/json" hidden />
+  </div>
+  <form class="watchlist-add" id="watchlist-add">
+    <input id="watchlist-name" aria-label="手动添加片名" placeholder="已有想看的电影？输入片名" maxlength="200" required />
+    <input id="watchlist-year" aria-label="电影年份（选填）" placeholder="年份（选填）" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" />
+    <button class="btn btn-sm" type="submit">加入片单</button>
+  </form>
+  <p id="watchlist-feedback" class="watchlist-feedback" role="status" aria-live="polite"></p>
+  <div class="watchlist-items" id="watchlist-items"></div>
+</dialog>
 
 <form class="chat-composer" id="composer">
   <div class="composer-inner">
@@ -51,11 +66,6 @@
   </div>
   <p class="composer-hint">台词时间点和片段来自搜索候选，未逐帧核对；平台搜索页需自己确认。</p>
 </form>
-
-<footer class="wrap ask-footer">
-  <span>SHOT·AGENT</span>
-  <span>不提供盗版、网盘、磁力链接。评分与渠道以来源页面为准。</span>
-</footer>
 
 <script type="module" src="/static/chat.js"></script>
 </body>

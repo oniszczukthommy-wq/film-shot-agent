@@ -1,7 +1,9 @@
 /* One-dialog film agent. All model output is text nodes; links are backend-vetted. */
+import { initWatchlist, collectionButton } from "./watchlist.js";
 
 const STORAGE_KEY = "film-shot-agent-chat-v2";
 const MAX_MESSAGES = 12;
+let stopIntroWave = () => {};
 const SUGGESTS = [
   "这句台词“我看过你们人类……”是哪部片的？",
   "“说好的一辈子，差一年一个月一天一个时辰，都不算一辈子”是哪部电影？",
@@ -257,6 +259,7 @@ function filmCard(title) {
       el("span", { class: `conf ${title.confidence || "medium"}` }, confidenceLabel(title.confidence)),
     ),
   );
+  body.append(collectionButton(title));
 
   if (title.ratings?.length) {
     const row = el("div", { class: "rating-row" });
@@ -498,6 +501,7 @@ function showLoading() {
 async function send(text) {
   const query = String(text || "").trim();
   if (!query || state.busy) return;
+  stopIntroWave();
   const history = state.messages
     .filter((row) => row.role === "user" || (row.role === "assistant" && !row.error))
     .slice(-6)
@@ -553,6 +557,7 @@ async function send(text) {
 }
 
 function newChat() {
+  stopIntroWave();
   state.messages = [];
   localStorage.removeItem(STORAGE_KEY);
   renderAll();
@@ -561,28 +566,48 @@ function newChat() {
   $("#chat-input").focus();
 }
 
-function boot() {
-  const suggestions = $("#suggestions");
-  for (const text of SUGGESTS) {
-    suggestions.append(el("button", { class: "chip", onclick: () => send(text) }, text));
+function introWave() {
+  const stage = $("#suggestions");
+  if (!stage) return;
+  // One entrance wave per page load; respect the system's motion preference.
+  if (state.messages.length || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    stage.remove();
+    return;
   }
+  const delays = [0, 1800, 3400, 900, 2700, 4300];
+  const animations = SUGGESTS.map((text, index) => {
+    const line = el("span", { class: "intro-danmaku-line" }, text);
+    line.style.top = `${index * 44}px`;
+    stage.append(line);
+    const distance = stage.clientWidth + line.offsetWidth;
+    return line.animate([
+      { transform: `translateX(${stage.clientWidth}px)` },
+      { transform: "translateX(-100%)" },
+    ], {
+      duration: distance / 45 * 1000,
+      delay: delays[index],
+      easing: "linear",
+      iterations: 1,
+      fill: "both",
+    });
+  });
+  stopIntroWave = () => {
+    animations.forEach(animation => animation.cancel());
+    stage.remove();
+  };
+  Promise.allSettled(animations.map(animation => animation.finished)).then(() => stage.remove());
+}
+
+function boot() {
+  initWatchlist({ filmCard });
   $("#composer").addEventListener("submit", (event) => {
     event.preventDefault();
     send($("#chat-input").value);
   });
   $("#new-chat").addEventListener("click", newChat);
-  fetch("/api/chat/meta")
-    .then((response) => response.json())
-    .then((data) => {
-      if (!data.enabled) {
-        $("#engine-stat").textContent = "模型未配置";
-        return;
-      }
-      $("#engine-stat").textContent = `联网搜索 · ${data.subtitles ? "33 台词 · " : ""}${data.model || "已连接"}`;
-    })
-    .catch(() => {});
   load();
   renderAll();
+  introWave();
   $("#intro").hidden = state.messages.length > 0;
   $("#chat-input").focus();
 }

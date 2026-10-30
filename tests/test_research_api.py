@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+from film_shot_agent.core.config import get_settings
 from film_shot_agent.main import app
 from film_shot_agent.services import research as research_service
 
@@ -32,10 +33,13 @@ def test_ask_redirects_home_and_library_still_works(client):
     assert "/static/app.js" in library.text
 
 
-def test_meta_reports_research_without_secrets(client):
+@pytest.mark.parametrize("configured", [False, True])
+def test_meta_reports_research_without_secrets(client, monkeypatch, configured):
+    monkeypatch.setattr(get_settings(), "llm_api_key", "test-secret" if configured else "")
     body = client.get("/api/meta").json()
     assert "research" in body
-    assert body["research"]["enabled"] is True
+    assert body["research"]["enabled"] is configured
+    assert "test-secret" not in str(body)
     assert "key" not in str(body).lower()
     assert "sk-" not in str(body)
 
