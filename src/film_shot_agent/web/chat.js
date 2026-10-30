@@ -115,7 +115,7 @@ function watchRow(item) {
   );
 }
 
-function sceneBlock(scene) {
+function sceneBlock(scene, title) {
   if (!scene || (!scene.quote && !scene.line && !scene.description && !scene.clip_url && !scene.source_url)) return null;
   const block = el("div", { class: "film-block scene-block" },
     el("h4", {}, "台词 / 场景"),
@@ -145,10 +145,40 @@ function sceneBlock(scene) {
   if (scene.clip_url) actions.append(outbound(scene.clip_url, "看候选片段 ↗", "btn btn-sm btn-quiet"));
   if (actions.childElementCount) block.append(actions);
   else block.append(el("p", { class: "hint" }, "暂无可核对的片段；时间点和平台跳转仅供参考。"));
+
+  const platformRow = platformPlayRow(title);
+  if (platformRow) block.append(platformRow);
   if (scene.source_url) {
-    block.append(el("p", { class: "scene-note" }, "播放、截图、剪切在 33 台词完成（需登录/积分）；本站只做检索和字幕前后文。"));
+    block.append(
+      el("p", { class: "scene-note" },
+        "33 台词的播放/截图需登录；平台按钮是官方搜索页，是否上架/会员需点开确认。",
+      ),
+    );
   }
   return block;
+}
+
+const PLATFORM_ORDER = ["腾讯视频", "爱奇艺", "芒果TV", "优酷", "哔哩哔哩", "1905电影网"];
+
+function platformPlayRow(title) {
+  const links = (title?.watch || [])
+    .filter((item) => item && item.url && item.platform && !item.direct)
+    .sort((a, b) => {
+      const ai = PLATFORM_ORDER.indexOf(a.platform);
+      const bi = PLATFORM_ORDER.indexOf(b.platform);
+      return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+    })
+    .slice(0, 6);
+  if (!links.length) return null;
+  const row = el("div", { class: "platform-play-row" },
+    el("span", { class: "platform-play-label" }, "去平台看"),
+  );
+  for (const item of links) {
+    const link = outbound(item.url, `${item.platform} ↗`, "platform-play");
+    link.title = item.note || "官方搜索页，需确认是否上架/会员";
+    row.append(link);
+  }
+  return row;
 }
 
 function closeContext() {
@@ -234,21 +264,31 @@ function filmCard(title) {
     body.append(row);
   }
 
-  const scene = sceneBlock(title.scene);
+  const scene = sceneBlock(title.scene, title);
   if (scene) body.append(scene);
 
-  if (title.watch?.length) {
+  const direct = (title.watch || []).filter((item) => item.direct);
+  const search = (title.watch || []).filter((item) => !item.direct);
+  const sceneShows = !!(
+    title.scene &&
+    (title.scene.quote || title.scene.line || title.scene.description ||
+      title.scene.clip_url || title.scene.source_url)
+  );
+  const sceneHasPlatforms = !!(
+    sceneShows && search.some((item) => item.url && item.platform)
+  );
+  // The scene block already promotes the platform search pages, so don't repeat
+  // the same six chips below it. Direct playback links still get their own block.
+  if (title.watch?.length && (direct.length || !sceneHasPlatforms)) {
     const block = el("div", { class: "film-block" },
-      el("h4", {}, "在哪看 · 直接播放优先，其余为平台搜索"),
+      el("h4", {}, "在哪看 · 直接播放优先"),
     );
-    const direct = title.watch.filter((item) => item.direct);
-    const search = title.watch.filter((item) => !item.direct);
     if (direct.length) {
       const list = el("div", { class: "watch-list" });
       for (const item of direct) list.append(watchRow(item));
       block.append(list);
     }
-    if (search.length) {
+    if (search.length && !sceneHasPlatforms) {
       const chips = el("div", { class: "platform-chips" });
       for (const item of search) {
         const link = outbound(item.url, item.platform || "平台搜索");
