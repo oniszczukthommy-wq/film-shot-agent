@@ -1,0 +1,30 @@
+name: Windows compatibility
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, codex/windows-support]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Create virtual environment
+        run: python -m venv .venv
+      - name: Setup using the Windows entry point
+        shell: pwsh
+        run: ./Windows.ps1 Setup
+      - name: Test on Windows
+        shell: pwsh
+        run: ./Windows.ps1 Test
