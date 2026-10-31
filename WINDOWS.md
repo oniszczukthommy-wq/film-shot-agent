@@ -40,3 +40,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Windows.ps1 Start
 
 `.github/workflows/windows.yml` 在 Windows runner 上执行同一安装与测试入口。
 自动测试不调用付费模型，不代表真实模型质量、GPU 加速或硬件输入已经验收。具体结果看仓库 Actions；首次运行失败时不得视为已支持。
+
+## 前四项目优先验收：本项目待办
+
+测试已加入真实 FFmpeg：用测试视频验证中文及空格路径、抽帧、MP4 剪辑、GIF 与联系表导出；不再只有替身测试。实际使用前仍要配置自己的模型和搜索 Key，验证一条台词查询和一轮影片研究；剪辑功能需恢复有权使用的原片文件。数据库与媒体一起备份，单独复制 Git 源码不会带走个人收藏。
